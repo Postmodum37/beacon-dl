@@ -1,0 +1,56 @@
+# Video files
+*.mkv
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+
+# Subtitle files
+*.vtt
+*.srt
+*.ass
+*.ssa
+*.sub
+
+# Temporary download files
+temp_video.*
+temp_*
+
+# Release directories (if any are created)
+Critical.Role.*/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Thumbnails
+Thumbs.db
+
+# Log files
+*.log
+
+# Torrent files
+*.torrent
+
+# MediaInfo output
+*.txt
+*.nfo
+
+# Screenshots/Proof
+*.png
+*.jpg
+*.jpeg
+
+# Backup files
+*.bak
+*.swp
+*~
+
+# IDE/Editor files
+.vscode/
+.idea/
+*.sublime-*
