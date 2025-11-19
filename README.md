@@ -63,21 +63,14 @@ brew install yt-dlp jq ffmpeg
 # https://github.com/Audionut/Upload-Assistant
 ```
 
-## Security Features
+## Security
 
-This script has been hardened against common security vulnerabilities:
+- **HTTPS Required**: Only HTTPS URLs accepted for security
+- **Input Validation**: Environment variables validated (alphanumeric, dots, dashes, underscores only)
+- **Secure Temp Files**: Random temporary directories prevent conflicts
+- **No Command Injection**: Blocks path traversal and injection attempts
 
-- **Input Validation**: All environment variables validated for safe characters only
-- **HTTPS Enforcement**: Only HTTPS URLs accepted (HTTP rejected for security)
-- **URL Validation**: Strict validation of beacon.tv URLs to prevent manipulation
-- **Browser Profile Validation**: Validates browser profile format before use
-- **Secure Temp Files**: Uses `mktemp` for secure temporary directory creation
-- **No Command Injection**: Array-based command construction prevents injection attacks
-- **Path Traversal Prevention**: Blocks directory traversal attempts in filenames
-- **Filename Sanitization**: Removes dangerous characters and prevents hidden files
-- **File Size Validation**: Warns if output files are suspiciously small
-
-**Supported browsers for cookie authentication**: firefox, chrome, chromium, edge, safari, brave, opera
+**Supported browsers**: firefox, chrome, chromium, edge, safari, brave, opera
 
 ## Configuration
 
@@ -126,16 +119,9 @@ PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
 PREFERRED_RESOLUTION="2160p" ./beacon_dl.sh <url>  # 4K
 ```
 
-### Advanced: Metadata Fallbacks
+### Metadata Fallbacks
 
-If metadata extraction fails, these defaults are used:
-
-```bash
-DEFAULT_RESOLUTION="1080p"
-DEFAULT_VIDEO_CODEC="H.264"
-DEFAULT_AUDIO_CODEC="AAC"
-DEFAULT_AUDIO_CHANNELS="2.0"
-```
+Defaults if metadata extraction fails: 1080p, H.264, AAC 2.0
 
 ### Combined Example
 
@@ -147,32 +133,15 @@ SOURCE_TYPE="WEBRip" \
 ./beacon_dl.sh <url>
 ```
 
-## Technical Specifications
+## Technical Details
 
-### Dynamic Detection
-All specifications are automatically detected from video metadata:
-- **Show Name**: Extracted from `series` or `uploader` metadata
-- **Video Codec**: Auto-detected (H.264, H.265, VP9)
-- **Audio Codec**: Auto-detected (AAC, Opus, Vorbis, AC3, EAC3)
-- **Audio Channels**: Extracted from metadata
-- **Resolution**: From video height metadata
-- **Subtitles**: All available languages with dynamic ISO 639-2 mapping
+**Auto-detected from metadata**: Show name, resolution, video/audio codecs, audio channels, subtitles
 
-### Typical BeaconTV Specs
-- **Video**: H.264 (High Profile), 1920x1080, 30fps, ~2414 kbps
-- **Audio**: AAC-LC 2.0, 44.1 kHz, ~120 kbps
-- **Container**: Matroska (MKV) by default, configurable
-- **Subtitles**: Multiple tracks (eng, spa, fre, ita, por, etc.) - SRT format, embedded
-- **Source**: BeaconTV WEB-DL (no re-encoding)
+**Typical specs**: H.264 1080p 30fps, AAC 2.0, MKV container, no re-encoding
 
-### Supported Episode Formats
-The script automatically detects multiple episode numbering formats:
-- `C4 E006 | Title` (Critical Role format)
-- `S04E06 - Title` or `S04E06: Title` (standard)
-- `S04E06 Title` (compact)
-- `4x06 - Title` (alternative)
+**Episode formats supported**: `C4 E006 | Title`, `S04E06 - Title`, `S04E06 Title`, `4x06 - Title`
 
-Non-episodic content (one-shots, specials) is automatically handled without season/episode numbers.
+Non-episodic content handled automatically.
 
 ## Creating Releases
 
@@ -197,42 +166,25 @@ Log into BeaconTV in your browser, then try again. The script will use the updat
 
 ### Browser profile not detected
 
-If auto-detection fails, the script will exit with an error. Set the `BROWSER_PROFILE` environment variable:
+Set `BROWSER_PROFILE` manually if auto-detection fails:
 ```bash
-# Find your Firefox profile
-ls ~/Library/Application\ Support/Firefox/Profiles/  # macOS
-ls ~/.mozilla/firefox/                               # Linux
-
-# Set it manually
+# Find profile: ls ~/Library/Application\ Support/Firefox/Profiles/  (macOS)
 BROWSER_PROFILE="firefox:~/path/to/profile" ./beacon_dl.sh <url>
-
-# Or use default browser profile
-BROWSER_PROFILE="firefox" ./beacon_dl.sh <url>
+BROWSER_PROFILE="firefox" ./beacon_dl.sh <url>  # Use default
 ```
 
-### Invalid characters in environment variables
+### Invalid characters error
 
-The script validates all environment variables for security. Only alphanumeric characters, dots (`.`), dashes (`-`), and underscores (`_`) are allowed.
+Only alphanumeric, dots (`.`), dashes (`-`), and underscores (`_`) allowed in environment variables:
 
 ```bash
-# This will fail:
-RELEASE_GROUP="../test" ./beacon_dl.sh <url>  # Path traversal blocked
-
-# This will work:
-RELEASE_GROUP="MyGroup-v2.0" ./beacon_dl.sh <url>  # Valid characters
+# Wrong: RELEASE_GROUP="../test"
+# Right: RELEASE_GROUP="MyGroup-v2.0"
 ```
 
-### HTTP URLs not working
+### HTTP URL rejected
 
-For security, only HTTPS URLs are accepted. If you get an error about invalid URL format:
-
-```bash
-# Wrong (HTTP):
-./beacon_dl.sh http://beacon.tv/content/test
-
-# Correct (HTTPS):
-./beacon_dl.sh https://beacon.tv/content/test
-```
+HTTPS required for security. Use `https://` not `http://`.
 
 ### Wrong show name or metadata
 

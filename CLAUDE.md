@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-This repository contains a bash script for downloading BeaconTV videos with all subtitle tracks, creating properly formatted video files. The script is fully configurable via environment variables and automatically detects show metadata, video specs, and browser profiles. Originally designed for Critical Role, it now supports any BeaconTV content.
+Bash script for downloading BeaconTV videos with all subtitle tracks. Fully configurable via environment variables with automatic metadata detection. Supports any BeaconTV content.
 
 ## How to Run
 
@@ -56,50 +56,17 @@ Output examples:
 
 ### Configuration
 
-All aspects of the script can be customized via environment variables:
-
-**Browser Authentication**:
-```bash
-# Browser profile for cookie authentication (auto-detected if not specified)
-BROWSER_PROFILE="firefox:~/path/to/your/profile" ./beacon_dl.sh <url>
-```
-
-**Release Customization**:
-```bash
-# Release group name (default: Pawsty)
-RELEASE_GROUP="MyGroup" ./beacon_dl.sh <url>
-
-# Source type (default: WEB-DL)
-SOURCE_TYPE="WEBRip" ./beacon_dl.sh <url>
-
-# Container format (default: mkv)
-CONTAINER_FORMAT="mp4" ./beacon_dl.sh <url>
-```
-
-**Quality Settings**:
-```bash
-# Preferred download resolution (default: 1080p)
-PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
-
-# Fallback values when metadata is missing
-DEFAULT_RESOLUTION="1080p" ./beacon_dl.sh <url>
-DEFAULT_VIDEO_CODEC="H.264" ./beacon_dl.sh <url>
-DEFAULT_AUDIO_CODEC="AAC" ./beacon_dl.sh <url>
-DEFAULT_AUDIO_CHANNELS="2.0" ./beacon_dl.sh <url>
-```
-
-**Combined Example**:
-```bash
-RELEASE_GROUP="CustomGroup" PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
-```
+Configurable via environment variables:
+- `BROWSER_PROFILE`: Browser for cookies (auto-detected: firefox, chrome, etc.)
+- `RELEASE_GROUP`: Release group name (default: Pawsty)
+- `SOURCE_TYPE`: Source type (default: WEB-DL)
+- `CONTAINER_FORMAT`: Output format (default: mkv)
+- `PREFERRED_RESOLUTION`: Download quality (default: 1080p)
+- Metadata fallbacks: DEFAULT_RESOLUTION, DEFAULT_VIDEO_CODEC, DEFAULT_AUDIO_CODEC, DEFAULT_AUDIO_CHANNELS
 
 ## Dependencies
 
-### Required
-- **yt-dlp**: Video and subtitle download tool with BeaconTV support
-- **jq**: JSON processor for parsing video metadata
-- **ffmpeg/ffprobe**: For muxing video and subtitles into MKV container
-- **Browser with BeaconTV cookies**: Firefox/Zen browser profile for authentication
+**Required**: yt-dlp, jq, ffmpeg/ffprobe, browser with BeaconTV cookies (Firefox/Zen/Chrome)
 
 ## Architecture
 
@@ -215,103 +182,33 @@ BeaconTV provides subtitles as direct VTT URLs in metadata (accessed via `yt-dlp
 
 ### Error Handling
 
-The script uses `set -euo pipefail` for strict error handling with comprehensive validation:
+**Strict modes**: `set -euo pipefail` (exit on errors, undefined vars, pipeline failures)
 
-**Strict Error Modes**:
-- `set -e`: Exit on any command failure
-- `set -u`: Treat undefined variables as errors
-- `set -o pipefail`: Catch errors in pipelines
+**Security validations**:
+- Input: alphanumeric, dots, dashes, underscores only
+- URLs: HTTPS only, strict format validation
+- Browser profile: format validated before use
+- Temp files: secure random directories (mktemp)
+- Filenames: sanitized, length-limited, no hidden files
 
-**Cleanup on Exit**: Trap ensures secure temporary directory is removed even on failure
+**Checks**: Dependencies, existing files, metadata, download success, file size validation
 
-**Dependency Checking**: Verifies all required commands (yt-dlp, jq, ffmpeg, ffprobe) are installed before proceeding
-
-**Smart Download Skip**: Checks if output file already exists to prevent duplicate downloads
-
-**Input Validation**:
-- Environment variables validated for safe characters only (alphanumeric, dots, dashes, underscores)
-- URL format strictly validated (HTTPS only, beacon.tv domain, proper content path)
-- Browser profile format validated before use
-- Container format validated against whitelist
-- Filename sanitization with length limits and hidden file prevention
-
-**Security Validations**:
-- Prevents path traversal attacks in environment variables
-- Blocks command injection attempts
-- Enforces HTTPS-only for secure connections
-- Validates browser profile format to prevent injection
-- Uses secure temporary directory (mktemp) instead of predictable names
-
-**Validation Points**:
-- Required URL argument check
-- HTTPS and domain validation
-- Video metadata extraction with JSON parsing
-- Browser profile detection and format validation
-- Multi-format title parsing for episodic and non-episodic content
-- Video download verification
-- Subtitle download verification
-- FFmpeg muxing verification
-- Final output file verification with size check
-
-**Error Output**: All errors are sent to stderr for proper shell integration
+**Cleanup**: Automatic temp directory removal on exit
 
 ## Key Features
 
-### Dynamic Metadata Extraction
-- **Show Name**: Automatically extracted from video metadata instead of hardcoded
-- **Video Specs**: Resolution, codecs, and audio channels detected from metadata
-- **Fallback Values**: Configurable defaults used when metadata is incomplete
-
-### Multi-Format Episode Detection
-Supports multiple episode numbering formats:
-- Critical Role format: "C4 E006 | Title"
-- Standard format: "S04E06 - Title" or "S04E06: Title"
-- Compact format: "S04E06 Title"
-- Alternative format: "4x06 - Title"
-
-### Universal Language Support
-- Dynamic subtitle language detection from filenames
-- ISO 639-2 code mapping for international standards
-- Extensible language map supporting 9+ languages
-- No hardcoded language list limitations
-
-### Browser Profile Auto-Detection
-- Automatically finds Firefox, Zen, or Chrome profiles
-- Cross-platform support (macOS, Linux)
-- Manual override option available
-- Graceful fallback to specified default
+- **Dynamic metadata**: Auto-extracts show name, resolution, codecs from video
+- **Multi-format episodes**: Supports C4 E006, S04E06, 4x06 formats
+- **Universal subtitles**: Auto-detects languages, maps to ISO 639-2 codes (9+ languages)
+- **Browser auto-detection**: Finds Firefox/Zen/Chrome profiles (macOS/Linux)
+- **Security hardened**: Input validation, HTTPS-only, secure temp files, injection prevention
 
 ## Common Issues
 
-**Subtitle downloads fail**: Check if Pi-hole/DNS blocker is blocking `assets-jpcust.jwpsrv.com`. This domain must be unblocked for subtitle downloads.
-
-**Browser cookies expired**: If downloads fail with authentication errors, log into BeaconTV in your browser and try again.
-
-**Browser profile not detected**: If auto-detection fails, the script will exit with an error. Manually specify your profile:
-```bash
-BROWSER_PROFILE="firefox:~/path/to/profile" ./beacon_dl.sh <url>
-BROWSER_PROFILE="firefox" ./beacon_dl.sh <url>  # Use default profile
-```
-
-**Invalid characters in environment variables**: Only alphanumeric characters, dots (`.`), dashes (`-`), and underscores (`_`) are allowed. Path traversal attempts and special characters are blocked:
-```bash
-# This will fail:
-RELEASE_GROUP="../test" ./beacon_dl.sh <url>
-
-# This will work:
-RELEASE_GROUP="MyGroup-v2.0" ./beacon_dl.sh <url>
-```
-
-**HTTP URLs not accepted**: For security, only HTTPS URLs are accepted. Use `https://` instead of `http://`.
-
-**Wrong show name detected**: Override with environment variable if metadata is incorrect:
-```bash
-# The script will extract show name from metadata, but you can override it by editing the script
-# or by manually renaming the file after download
-```
-
-**Non-episodic content**: The script handles all BeaconTV content types. Non-episodic content (one-shots, specials) is automatically detected and formatted without season/episode numbers.
-
-**Custom release requirements**: All filename components can be customized via environment variables. See the Configuration section for details.
-
-**File size warning**: If the output file is less than 1MB, the script will warn that the download may have failed or been incomplete.
+- **Subtitles fail**: Unblock `assets-jpcust.jwpsrv.com` in Pi-hole/DNS blocker
+- **Auth errors**: Log into BeaconTV in browser to refresh cookies
+- **Profile not detected**: Set `BROWSER_PROFILE="firefox:~/path/to/profile"`
+- **Invalid chars**: Use only alphanumeric, dots, dashes, underscores (blocks `../test`, `; rm -rf`)
+- **HTTP rejected**: HTTPS required for security
+- **Wrong metadata**: Edit show name extraction logic or rename file manually
+- **File size < 1MB**: Warning indicates incomplete download
