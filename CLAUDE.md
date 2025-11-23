@@ -32,45 +32,264 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Bash script for downloading BeaconTV videos with all subtitle tracks. Fully configurable via environment variables with automatic metadata detection. Supports any BeaconTV content.
+BeaconTV downloader available in two implementations:
+1. **Python CLI** (`beacon-dl`) - Modern Python package with Playwright authentication (recommended)
+2. **Bash Script** (`beacon_dl.sh`) - Original shell script for simple setups
 
-## How to Run
+Both versions support:
+- Downloading BeaconTV videos with all subtitle tracks
+- Fully configurable via environment variables
+- Automatic metadata detection
+- All BeaconTV content types (episodic, one-shots, specials)
 
-Downloads video with all subtitle tracks:
+## Quick Start
+
+### Python CLI (Recommended)
+
+**Installation:**
 ```bash
-./beacon_dl.sh <beacon_tv_url>
+# Install with uv (recommended)
+uv pip install -e .
+
+# Or with pip
+pip install -e .
 ```
 
-Examples:
+**Usage:**
 ```bash
-# Episodic content
+# Download latest episode from Campaign 4 (no URL needed!)
+beacon-dl
+
+# Download latest episode with credentials (recommended - Playwright auth)
+beacon-dl --username user@example.com --password yourpassword
+
+# Download latest from a different series
+beacon-dl --series https://beacon.tv/series/exu-calamity --username user@example.com --password yourpassword
+
+# Download specific episode with Playwright authentication (recommended)
+beacon-dl https://beacon.tv/content/c4-e006-knives-and-thorns --username user@example.com --password yourpassword
+
+# With browser cookies (fallback method)
+beacon-dl https://beacon.tv/content/c4-e006-knives-and-thorns --browser firefox:default
+
+# Debug mode (shows browser window, verbose output)
+beacon-dl --username user@example.com --password yourpassword --debug
+
+# Environment variables (Docker-compatible)
+BEACON_USERNAME=user@example.com BEACON_PASSWORD=yourpassword beacon-dl
+```
+
+### Bash Script
+
+**Usage:**
+```bash
+# Basic usage (auto-detects browser cookies)
 ./beacon_dl.sh https://beacon.tv/content/c4-e006-knives-and-thorns
 
-# One-shots and specials
-./beacon_dl.sh https://beacon.tv/content/critical-role-jester-and-fjords-wedding-live-from-radio-city-music-hall
+# With environment variables
+RELEASE_GROUP="MyGroup" PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
 ```
 
-Output examples:
+**Output examples:**
 - Episodic: `Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
 - One-shot: `Critical.Role.Jester.and.Fjords.Wedding.Live.from.Radio.City.Music.Hall.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
 
-### Configuration
+## Configuration
 
-Configurable via environment variables:
-- `BROWSER_PROFILE`: Browser for cookies (auto-detected: firefox, chrome, etc.)
+Both implementations support the same configuration via environment variables or `.env` file:
+
+**Authentication (Python only):**
+- `BEACON_USERNAME`: BeaconTV username for Playwright login (primary auth method)
+- `BEACON_PASSWORD`: BeaconTV password for Playwright login (primary auth method)
+- `BROWSER_PROFILE`: Browser for cookies (fallback: firefox, chrome, etc.)
+
+**Download Settings:**
 - `RELEASE_GROUP`: Release group name (default: Pawsty)
 - `SOURCE_TYPE`: Source type (default: WEB-DL)
 - `CONTAINER_FORMAT`: Output format (default: mkv)
 - `PREFERRED_RESOLUTION`: Download quality (default: 1080p)
-- Metadata fallbacks: DEFAULT_RESOLUTION, DEFAULT_VIDEO_CODEC, DEFAULT_AUDIO_CODEC, DEFAULT_AUDIO_CHANNELS
+
+**Metadata Fallbacks:**
+- `DEFAULT_RESOLUTION`: Fallback resolution if not detected
+- `DEFAULT_VIDEO_CODEC`: Fallback video codec (default: H.264)
+- `DEFAULT_AUDIO_CODEC`: Fallback audio codec (default: AAC)
+- `DEFAULT_AUDIO_CHANNELS`: Fallback audio channels (default: 2.0)
+
+**Debug (Python only):**
+- `DEBUG`: Enable debug mode (default: false) - shows browser window, verbose output
 
 ## Dependencies
 
+### Python CLI
+**Required**: Python 3.10+, yt-dlp, playwright, pydantic, rich, typer, ffmpeg
+
+**Installation:**
+```bash
+# Install package (installs all dependencies)
+uv pip install -e .
+
+# Install Playwright browsers (first time only)
+playwright install chromium
+```
+
+### Bash Script
 **Required**: yt-dlp, jq, ffmpeg/ffprobe, browser with BeaconTV cookies (Firefox/Zen/Chrome)
+
+```bash
+brew install yt-dlp jq ffmpeg
+```
 
 ## Architecture
 
-### Download and Muxing Flow
+### Python CLI Architecture
+
+The Python implementation (`src/beacon_dl/`) is organized into modular components:
+
+**Package Structure:**
+```
+src/beacon_dl/
+├── __init__.py
+├── main.py          # CLI entry point (Typer)
+├── config.py        # Configuration (Pydantic Settings)
+├── auth.py          # Authentication logic
+├── downloader.py    # Download & muxing logic
+└── utils.py         # Helper functions
+```
+
+**Module Responsibilities:**
+
+1. **config.py** (`src/beacon_dl/config.py:1-29`):
+   - Type-safe configuration using Pydantic Settings
+   - Reads from environment variables or `.env` file
+   - Defines all configurable parameters with defaults
+   - Validates configuration values
+
+2. **auth.py** (`src/beacon_dl/auth.py:1-280`):
+   - **Playwright login**: Primary authentication method (Docker-optimized, headless by default)
+   - **Browser cookie extraction**: Fallback for local development
+   - **Cookie management**: Converts Playwright cookies to Netscape format for yt-dlp
+   - **Cookie validation**: Validates cookies contain required auth tokens and checks expiration
+   - **Authentication priority**: Playwright (username/password) → browser profile (explicit) → browser profile (auto-detect)
+   - **Cross-domain handling**: Navigates to both members.beacon.tv and beacon.tv to capture all auth cookies
+   - Function `validate_cookies()` checks cookie validity before download
+   - Function `login_and_get_cookies()` handles Playwright-based authentication with proper navigation
+   - Function `get_auth_args()` returns yt-dlp authentication arguments with correct priority
+   - **Debug mode**: Shows browser window when DEBUG=true, headless otherwise
+
+3. **utils.py** (`src/beacon_dl/utils.py:1-137`):
+   - **Filename sanitization**: `sanitize_filename()` matches bash script logic
+   - **Language mapping**: `map_language_to_iso()` converts language names to ISO 639-2 codes
+   - **Browser detection**: `detect_browser_profile()` auto-detects browser profiles on macOS/Linux
+   - **Latest episode fetching**: `get_latest_episode_url()` scrapes series page for latest episode
+   - Supports 9+ languages for subtitle mapping
+
+4. **downloader.py** (`src/beacon_dl/downloader.py:1-229`):
+   - **BeaconDownloader class**: Main download orchestration
+   - **Metadata extraction**: Uses yt-dlp Python API to fetch video info
+   - **Filename generation**: `_generate_filename()` implements same logic as bash script
+     - Supports 4+ episode formats: C4 E006, S04E06, S04E06 Title, 4x06
+     - Detects episodic vs non-episodic content
+     - Extracts technical specs (resolution, codecs, channels)
+   - **Download**: Downloads video and all subtitle tracks using yt-dlp
+   - **Muxing**: `_merge_files()` uses ffmpeg to merge video + subtitles
+     - Stream copy (no re-encoding)
+     - Dynamic language detection from subtitle filenames
+     - ISO 639-2 language metadata
+
+5. **main.py** (`src/beacon_dl/main.py:1-70`):
+   - **CLI interface**: Typer-based command-line interface
+   - **Entry point**: `beacon-dl` command (defined in pyproject.toml)
+   - **Arguments**: URL (optional - defaults to latest episode), username, password, browser, series, debug (all optional)
+   - **Latest episode mode**: When no URL provided, automatically fetches latest episode
+   - **Error handling**: Graceful handling of KeyboardInterrupt and exceptions
+   - **Debug mode**: `--debug` flag enables verbose output and shows browser window
+   - **Rich console**: Pretty colored terminal output with status indicators
+
+**Key Differences from Bash Script:**
+- **Type safety**: Pydantic validates configuration
+- **Better UX**: Rich console with colored output
+- **Playwright authentication**: Primary auth method (Docker-optimized)
+- **Latest episode auto-fetch**: No URL needed - automatically downloads newest episode
+- **Series selection**: Can specify different series with `--series` flag
+- **Python API**: Uses yt-dlp Python API instead of subprocess
+- **Modular**: Separated concerns (auth, download, config, utils)
+- **Same output**: Generates identical filenames and video files
+- **Docker-ready**: Designed for containerized environments
+
+**Authentication Flow (Docker-optimized):**
+
+The Python CLI prioritizes Playwright authentication as the primary method:
+
+1. **FIRST PRIORITY - Playwright Login** (recommended):
+   - If `BEACON_USERNAME` and `BEACON_PASSWORD` provided (via CLI flags or env vars)
+   - Launches Chromium in headless mode (visible in debug mode with `--debug`)
+   - Logs into members.beacon.tv
+   - Navigates to beacon.tv homepage and content page to capture all auth cookies
+   - Validates cookies contain required tokens for both domains
+   - Saves cookies to Netscape format file for yt-dlp
+   - **Ideal for Docker containers** where browser cookies are unavailable
+
+2. **SECOND PRIORITY - Explicit Browser Profile**:
+   - If `BROWSER_PROFILE` environment variable or `--browser` flag provided
+   - Uses yt-dlp's `--cookies-from-browser` to extract cookies
+   - Example: `--browser firefox:default` or `BROWSER_PROFILE=chrome`
+
+3. **THIRD PRIORITY - Auto-detect Browser Profile** (local development fallback):
+   - If no credentials or browser profile specified
+   - Auto-detects browser profiles in order: Zen → Firefox → Chrome
+   - Uses yt-dlp's `--cookies-from-browser` with detected profile
+   - **Note**: User must be logged into BeaconTV in their browser
+
+4. **NO AUTHENTICATION**:
+   - If none of the above methods available
+   - Shows error message with instructions
+   - Download will fail for members-only content
+
+**Why Playwright is Primary:**
+- **Docker-compatible**: Works in containers without browser cookies
+- **Automated**: No manual browser login required
+- **Cross-domain**: Properly captures cookies from both members.beacon.tv and beacon.tv
+- **Validated**: Checks cookie validity before attempting download
+- **Headless**: Runs in background by default (visible with `--debug`)
+
+**Latest Episode Auto-Fetch:**
+
+When no URL is provided, the CLI automatically fetches and downloads the latest episode from Campaign 4:
+
+```bash
+# Download latest episode from Campaign 4
+beacon-dl
+
+# Download latest from a different series
+beacon-dl --series https://beacon.tv/series/exu-calamity
+```
+
+**How it works:**
+1. Uses Playwright to navigate to the series page (default: `https://beacon.tv/series/campaign-4`)
+2. Extracts all episode links from the page
+3. Selects the first episode (usually the latest)
+4. Downloads that episode automatically
+
+This feature is particularly useful for:
+- Docker containers with scheduled downloads (cron jobs)
+- Automated setups that always download the newest episode
+- Quick downloads without needing to find the episode URL
+
+**Download Flow:**
+1. If no URL provided, fetch latest episode URL from series page (using Playwright)
+2. Fetch metadata with yt-dlp (`ydl.extract_info(url, download=False)`)
+3. Extract show name, title, technical specs from metadata
+4. Generate output filename using same logic as bash script
+5. Check if file already exists (skip if yes)
+6. Download video to `temp_dl/video.mp4`
+7. Download all subtitle tracks to `temp_dl/subs.*.vtt`
+8. Merge with ffmpeg (stream copy, convert subs to SRT)
+9. Cleanup temp directory
+10. Report completion with Rich console
+
+### Bash Script Architecture
+
+#### Download and Muxing Flow
 
 1. **Configuration & Validation** (lines 8-48):
    - Sets strict error handling with `set -euo pipefail`
@@ -205,10 +424,155 @@ BeaconTV provides subtitles as direct VTT URLs in metadata (accessed via `yt-dlp
 
 ## Common Issues
 
+### Both Implementations
 - **Subtitles fail**: Unblock `assets-jpcust.jwpsrv.com` in Pi-hole/DNS blocker
-- **Auth errors**: Log into BeaconTV in browser to refresh cookies
-- **Profile not detected**: Set `BROWSER_PROFILE="firefox:~/path/to/profile"`
-- **Invalid chars**: Use only alphanumeric, dots, dashes, underscores (blocks `../test`, `; rm -rf`)
-- **HTTP rejected**: HTTPS required for security
+- **Auth errors**: Log into BeaconTV in browser to refresh cookies, or use Playwright login (Python only)
+- **Profile not detected**: Set `BROWSER_PROFILE="firefox:~/path/to/profile"` or use `--browser` flag (Python)
 - **Wrong metadata**: Edit show name extraction logic or rename file manually
 - **File size < 1MB**: Warning indicates incomplete download
+
+### Bash Script Specific
+- **Invalid chars**: Use only alphanumeric, dots, dashes, underscores (blocks `../test`, `; rm -rf`)
+- **HTTP rejected**: HTTPS required for security
+
+### Python CLI Specific
+- **Playwright login fails**: Check username/password, or use browser cookies instead
+- **Import errors**: Ensure all dependencies installed: `uv pip install -e .`
+- **Playwright not installed**: Run `playwright install chromium`
+- **Config not loading**: Create `.env` file in project root or use CLI flags
+
+## Project Structure
+
+```
+beacon-tv-downloader/
+├── src/beacon_dl/          # Python package
+│   ├── __init__.py
+│   ├── main.py            # CLI entry point
+│   ├── config.py          # Configuration
+│   ├── auth.py            # Authentication
+│   ├── downloader.py      # Download logic
+│   └── utils.py           # Utilities
+├── beacon_dl.sh           # Bash script version
+├── pyproject.toml         # Python package config
+├── uv.lock                # Dependency lock file
+├── .env                   # Environment variables (gitignored)
+├── .python-version        # Python version (3.14)
+├── README.md              # User documentation
+└── CLAUDE.md              # This file (AI agent guidance)
+```
+
+## Development Notes
+
+**Python Version**: 3.10+ required (project uses 3.14)
+
+**Package Manager**: Uses `uv` for fast dependency management
+
+**Development Setup**:
+```bash
+# Install in editable mode
+uv pip install -e .
+
+# Install Playwright browsers
+playwright install chromium
+```
+
+**Adding Features**:
+- **Configuration**: Add to `Settings` class in `config.py`
+- **Authentication**: Modify `auth.py` (prefer browser cookies over Playwright)
+- **Download logic**: Update `BeaconDownloader` class in `downloader.py`
+- **Filename logic**: Edit `_generate_filename()` method
+- **CLI options**: Add to `download()` command in `main.py`
+
+**Testing**:
+- Test latest episode auto-fetch: `beacon-dl` (no arguments)
+- Test latest from different series: `beacon-dl --series https://beacon.tv/series/exu-calamity`
+- Test with episodic content: `beacon-dl https://beacon.tv/content/c4-e006-knives-and-thorns`
+- Test with one-shots: `beacon-dl https://beacon.tv/content/critical-role-jester-and-fjords-wedding-live-from-radio-city-music-hall`
+- Test different resolutions: `PREFERRED_RESOLUTION="720p" beacon-dl <url>`
+- Test authentication methods: Playwright login (primary), browser cookies, auto-detect
+- Test Docker compatibility: Use with `BEACON_USERNAME` and `BEACON_PASSWORD` env vars
+
+**Docker Usage**:
+
+The Python CLI is optimized for Docker containers:
+
+```dockerfile
+FROM python:3.10-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy project files
+COPY . .
+
+# Install Python dependencies
+RUN pip install -e .
+
+# Install Playwright browsers
+RUN playwright install chromium
+RUN playwright install-deps chromium
+
+# Set environment variables
+ENV BEACON_USERNAME=""
+ENV BEACON_PASSWORD=""
+ENV PREFERRED_RESOLUTION="1080p"
+ENV RELEASE_GROUP="Pawsty"
+
+# Run command
+CMD ["beacon-dl"]
+```
+
+**Docker Compose Example:**
+```yaml
+version: '3.8'
+services:
+  beacon-dl:
+    build: .
+    environment:
+      - BEACON_USERNAME=${BEACON_USERNAME}
+      - BEACON_PASSWORD=${BEACON_PASSWORD}
+      - PREFERRED_RESOLUTION=1080p
+      - RELEASE_GROUP=Pawsty
+    volumes:
+      - ./downloads:/app
+    command: beacon-dl
+```
+
+**Run with Docker:**
+```bash
+# Build image
+docker build -t beacon-dl .
+
+# Download latest episode
+docker run --rm \
+  -e BEACON_USERNAME=user@example.com \
+  -e BEACON_PASSWORD=yourpassword \
+  -v $(pwd)/downloads:/app \
+  beacon-dl
+
+# Download specific episode
+docker run --rm \
+  -e BEACON_USERNAME=user@example.com \
+  -e BEACON_PASSWORD=yourpassword \
+  -v $(pwd)/downloads:/app \
+  beacon-dl beacon-dl https://beacon.tv/content/c4-e006-knives-and-thorns
+```
+
+**Scheduled Downloads (Cron):**
+```bash
+# Add to crontab to download latest episode daily at 2 AM
+0 2 * * * docker run --rm -e BEACON_USERNAME=user@example.com -e BEACON_PASSWORD=yourpassword -v /path/to/downloads:/app beacon-dl
+```
+
+**Security Considerations**:
+- Never commit `.env` file (contains credentials)
+- Use Docker secrets or environment variables for credentials
+- Validate all user inputs (especially environment variables)
+- Use HTTPS-only URLs
+- Sanitize filenames to prevent directory traversal
+- Use secure temp directories
+- Don't hardcode personal browser profile paths

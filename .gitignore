@@ -1,56 +1,75 @@
-# Video files
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# Playwright
+playwright_profile/
+.playwright/
+
+# BeaconTV specific
+beacon_cookies.txt
 *.mkv
 *.mp4
-*.avi
-*.mov
-*.wmv
-*.flv
-*.webm
+temp_dl/
 
-# Subtitle files
-*.vtt
-*.srt
-*.ass
-*.ssa
-*.sub
+# Debug files
+debug_*.py
+debug_*.png
+debug_*.txt
+test_login*.py
+test_login*.png
+diagnose_*.py
+diagnose_*.png
+diagnosis_*.png
+simple_*.py
+simple_*.png
+verify_*.py
+login_error.png
+error_*.png
+curl_output.html
 
-# Temporary download files
-temp_video.*
-temp_*
-
-# Release directories (if any are created)
-Critical.Role.*/
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-._*
-
-# Thumbnails
-Thumbs.db
-
-# Log files
-*.log
-
-# Torrent files
-*.torrent
-
-# MediaInfo output
-*.txt
-*.nfo
-
-# Screenshots/Proof
-*.png
-*.jpg
-*.jpeg
-
-# Backup files
-*.bak
-*.swp
-*~
-
-# IDE/Editor files
+# IDE
 .vscode/
 .idea/
-*.sublime-*
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Logs
+*.log
