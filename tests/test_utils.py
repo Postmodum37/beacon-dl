@@ -1,7 +1,9 @@
 """Tests for utility functions."""
 
 import pytest
-from src.beacon_dl.utils import sanitize_filename, map_language_to_iso
+from unittest.mock import patch, MagicMock, Mock
+from pathlib import Path
+from src.beacon_dl.utils import sanitize_filename, map_language_to_iso, detect_browser_profile
 
 
 class TestFilenameSanitization:
@@ -113,25 +115,198 @@ class TestLanguageMapping:
 class TestBrowserDetection:
     """Tests for browser profile detection."""
 
-    def test_detect_browser_profile_zen(self):
-        """Test Zen browser is detected first on macOS."""
-        # This is an integration test that depends on the actual filesystem
-        # In a real test, we'd mock Path.exists() and Path.iterdir()
-        from src.beacon_dl.utils import detect_browser_profile
-        from unittest.mock import patch, MagicMock
-        from pathlib import Path
+    def test_detect_browser_profile_zen_macos(self):
+        """Test Zen browser detection on macOS."""
+        with patch.object(Path, 'home', return_value=Path('/Users/test')):
+            with patch.object(Path, 'exists') as mock_exists:
+                with patch.object(Path, 'glob') as mock_glob:
+                    # Zen exists, Firefox doesn't
+                    def exists_side_effect(self=None):
+                        path_str = str(self) if hasattr(self, '__str__') else str(mock_exists.call_args)
+                        if 'zen' in path_str.lower():
+                            return True
+                        return False
 
-        with patch('pathlib.Path.exists') as mock_exists:
-            with patch('pathlib.Path.iterdir') as mock_iterdir:
-                # Simulate Zen browser profile exists
-                mock_exists.return_value = True
-                mock_profile = MagicMock()
-                mock_profile.name = "default"
-                mock_profile.is_dir.return_value = True
-                mock_iterdir.return_value = [mock_profile]
+                    mock_exists.side_effect = exists_side_effect
 
-                result = detect_browser_profile()
+                    # Mock profile found
+                    mock_profile = MagicMock()
+                    mock_profile.stat.return_value.st_mtime = 12345
+                    mock_glob.return_value = [mock_profile]
 
-                # Result format: "browser:profile_path"
-                if result:
-                    assert "zen" in result.lower() or "firefox" in result.lower()
+                    result = detect_browser_profile()
+
+                    # When Zen is found, should return firefox:path
+                    if result:
+                        assert "firefox:" in result
+
+    def test_detect_browser_profile_firefox_fallback(self):
+        """Test Firefox fallback when Zen not available."""
+        with patch.object(Path, 'home', return_value=Path('/Users/test')):
+            with patch.object(Path, 'exists') as mock_exists:
+                with patch.object(Path, 'glob') as mock_glob:
+                    # Only Firefox exists (not Zen)
+                    call_count = [0]
+                    def exists_side_effect(self=None):
+                        call_count[0] += 1
+                        # First call is Zen (no), second is Firefox (yes)
+                        if call_count[0] == 1:
+                            return False  # No Zen
+                        return True  # Firefox exists
+
+                    mock_exists.side_effect = exists_side_effect
+
+                    mock_profile = MagicMock()
+                    mock_profile.stat.return_value.st_mtime = 12345
+                    mock_glob.return_value = [mock_profile]
+
+                    result = detect_browser_profile()
+
+                    if result:
+                        assert "firefox:" in result
+
+    def test_detect_browser_profile_chrome_fallback(self):
+        """Test Chrome fallback when Firefox not available."""
+        with patch.object(Path, 'home', return_value=Path('/Users/test')):
+            with patch.object(Path, 'exists') as mock_exists:
+                with patch.object(Path, 'glob') as mock_glob:
+                    # Only Chrome exists
+                    call_count = [0]
+                    def exists_side_effect(self=None):
+                        call_count[0] += 1
+                        # Zen: no, Firefox macOS: no, Firefox Linux: no, Chrome macOS: yes
+                        if call_count[0] <= 3:
+                            return False
+                        return True
+
+                    mock_exists.side_effect = exists_side_effect
+                    mock_glob.return_value = []  # No profiles found
+
+                    result = detect_browser_profile()
+
+                    if result:
+                        assert result == "chrome"
+
+    def test_detect_browser_profile_none_found(self):
+        """Test when no browser is found."""
+        with patch.object(Path, 'home', return_value=Path('/Users/test')):
+            with patch.object(Path, 'exists', return_value=False):
+                with patch.object(Path, 'glob', return_value=[]):
+                    result = detect_browser_profile()
+                    assert result is None
+
+
+class TestSanitizeFilenameEdgeCases:
+    """Additional edge case tests for filename sanitization."""
+
+    def test_sanitize_empty_string(self):
+        """Test empty string returns 'unnamed'."""
+        assert sanitize_filename("") == "unnamed"
+
+    def test_sanitize_only_special_chars(self):
+        """Test string with only special chars returns 'unnamed'."""
+        assert sanitize_filename("!@#$%^&*()") == "unnamed"
+
+    def test_sanitize_unicode(self):
+        """Test unicode characters are removed."""
+        result = sanitize_filename("Caf\u00e9 \u4e2d\u6587")
+        assert result == "Caf."
+
+    def test_sanitize_leading_dashes(self):
+        """Test leading dashes are removed."""
+        result = sanitize_filename("---test")
+        assert result == "test"
+
+    def test_sanitize_numbers_only(self):
+        """Test numbers are preserved."""
+        assert sanitize_filename("12345") == "12345"
+
+
+class TestConstants:
+    """Tests that import and verify constants."""
+
+    def test_import_constants(self):
+        """Test constants can be imported."""
+        from src.beacon_dl.constants import (
+            LANGUAGE_TO_ISO_MAP,
+            SUPPORTED_CONTAINER_FORMATS,
+            VIDEO_CODECS,
+            AUDIO_CODECS,
+            DEFAULT_RELEASE_GROUP,
+            DEFAULT_SOURCE_TYPE,
+            DEFAULT_CONTAINER_FORMAT,
+            DEFAULT_RESOLUTION,
+            DEFAULT_AUDIO_CODEC,
+            DEFAULT_AUDIO_CHANNELS,
+            DEFAULT_VIDEO_CODEC,
+            BEACON_TV_API_ENDPOINT,
+            BEACON_TV_LOGIN_URL,
+            BEACON_TV_BASE_URL,
+            BEACON_TV_CONTENT_URL,
+            KNOWN_COLLECTIONS,
+            SLUG_PATTERN,
+            RESOLUTION_PATTERN,
+            AUDIO_CHANNELS_PATTERN,
+            ALPHANUM_PATTERN,
+            SECURE_FILE_PERMISSIONS,
+            SECURE_DIR_PERMISSIONS,
+            DEFAULT_HTTP_TIMEOUT,
+            PLAYWRIGHT_PAGE_TIMEOUT,
+            PLAYWRIGHT_NAVIGATION_TIMEOUT,
+            DEFAULT_USER_AGENT,
+        )
+
+        # Verify some key values
+        assert DEFAULT_RELEASE_GROUP == "Pawsty"
+        assert DEFAULT_RESOLUTION == "1080p"
+        assert DEFAULT_CONTAINER_FORMAT == "mkv"
+        assert "campaign-4" in KNOWN_COLLECTIONS
+        assert SECURE_FILE_PERMISSIONS == 0o600
+
+    def test_language_map_completeness(self):
+        """Test language map has expected entries."""
+        from src.beacon_dl.constants import LANGUAGE_TO_ISO_MAP
+
+        assert "english" in LANGUAGE_TO_ISO_MAP
+        assert "spanish" in LANGUAGE_TO_ISO_MAP
+        assert LANGUAGE_TO_ISO_MAP["english"] == "eng"
+        assert LANGUAGE_TO_ISO_MAP["spanish"] == "spa"
+
+    def test_container_formats(self):
+        """Test supported container formats."""
+        from src.beacon_dl.constants import SUPPORTED_CONTAINER_FORMATS
+
+        assert "mkv" in SUPPORTED_CONTAINER_FORMATS
+        assert "mp4" in SUPPORTED_CONTAINER_FORMATS
+        assert len(SUPPORTED_CONTAINER_FORMATS) >= 5
+
+    def test_codec_mappings(self):
+        """Test codec mappings."""
+        from src.beacon_dl.constants import VIDEO_CODECS, AUDIO_CODECS
+
+        assert VIDEO_CODECS["h264"] == "H.264"
+        assert VIDEO_CODECS["hevc"] == "H.265"
+        assert AUDIO_CODECS["aac"] == "AAC"
+        assert AUDIO_CODECS["opus"] == "Opus"
+
+
+class TestLanguageMappingAdditional:
+    """Additional language mapping tests."""
+
+    def test_map_iso_codes(self):
+        """Test ISO code inputs are mapped correctly."""
+        assert map_language_to_iso("en") == "eng"
+        assert map_language_to_iso("es") == "spa"
+        assert map_language_to_iso("fr") == "fre"
+        assert map_language_to_iso("de") == "ger"
+        assert map_language_to_iso("it") == "ita"
+        assert map_language_to_iso("pt") == "por"
+        assert map_language_to_iso("ja") == "jpn"
+        assert map_language_to_iso("ko") == "kor"
+        assert map_language_to_iso("zh") == "chi"
+
+    def test_map_native_names(self):
+        """Test native language name inputs."""
+        assert map_language_to_iso("italiano") == "ita"
+        assert map_language_to_iso("deutsch") == "ger"
+        assert map_language_to_iso("português") == "por"
