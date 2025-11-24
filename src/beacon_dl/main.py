@@ -13,6 +13,7 @@ from .downloader import BeaconDownloader
 from .config import settings
 from .graphql import BeaconGraphQL
 from .auth import get_cookie_file
+from .history import DownloadHistory, VerifyResult
 
 app = typer.Typer(
     help="Beacon TV Downloader - Simplified direct download",
@@ -380,6 +381,181 @@ def batch_download(
         console.print(f"[red]❌ Error: {e}[/red]")
         if settings.debug:
             console.print_exception()
+        raise typer.Exit(code=1)
+
+
+@app.command("history")
+def show_history(
+    limit: int = typer.Option(20, "--limit", "-n", help="Number of records to show"),
+):
+    """
+    Show download history.
+
+    Lists recent downloads with their status and metadata.
+    """
+    try:
+        history = DownloadHistory()
+        downloads = history.list_downloads(limit=limit)
+
+        if not downloads:
+            console.print("[yellow]No downloads in history yet[/yellow]")
+            console.print("[dim]Downloads will be tracked after your first download[/dim]")
+            return
+
+        table = Table(show_header=True, header_style="bold cyan")
+        table.add_column("Date", style="dim", width=12)
+        table.add_column("Episode", style="yellow", width=10)
+        table.add_column("Title", style="green")
+        table.add_column("Size", justify="right", style="cyan", width=10)
+        table.add_column("Status", width=8)
+
+        for dl in downloads:
+            # Parse date
+            date_str = dl.downloaded_at[:10] if dl.downloaded_at else "?"
+
+            # Parse episode from title
+            episode_str = "?"
+            import re
+            match = re.match(r"C(\d+)\s+E(\d+)", dl.title)
+            if match:
+                episode_str = f"S{int(match.group(1)):02d}E{int(match.group(2)):02d}"
+            else:
+                match = re.match(r"S(\d+)E(\d+)", dl.title)
+                if match:
+                    episode_str = f"S{int(match.group(1)):02d}E{int(match.group(2)):02d}"
+
+            # Format file size
+            if dl.file_size:
+                if dl.file_size >= 1_000_000_000:
+                    size_str = f"{dl.file_size / 1_000_000_000:.1f} GB"
+                elif dl.file_size >= 1_000_000:
+                    size_str = f"{dl.file_size / 1_000_000:.1f} MB"
+                else:
+                    size_str = f"{dl.file_size / 1_000:.1f} KB"
+            else:
+                size_str = "?"
+
+            # Status indicator
+            status_str = "[green]OK[/green]" if dl.status == "completed" else f"[red]{dl.status}[/red]"
+
+            # Title (truncate if too long)
+            title = dl.title
+            if len(title) > 40:
+                title = title[:37] + "..."
+
+            table.add_row(date_str, episode_str, title, size_str, status_str)
+
+        console.print(table)
+        console.print(f"\n[dim]Total: {history.count_downloads()} downloads[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("verify")
+def verify_files(
+    filename: Optional[str] = typer.Argument(None, help="Specific filename to verify (optional)"),
+    full: bool = typer.Option(False, "--full", "-f", help="Full verification with SHA256 hash check"),
+):
+    """
+    Verify integrity of downloaded files.
+
+    Checks that downloaded files match their recorded size and optionally
+    verifies SHA256 checksums. Without --full, only checks file size (fast).
+    """
+    try:
+        history = DownloadHistory()
+        downloads = history.list_downloads(limit=1000)
+
+        if not downloads:
+            console.print("[yellow]No downloads in history to verify[/yellow]")
+            return
+
+        if filename:
+            # Verify specific file
+            record = history.get_download_by_filename(filename)
+            if not record:
+                console.print(f"[red]File not found in history: {filename}[/red]")
+                raise typer.Exit(code=1)
+            downloads = [record]
+
+        console.print(f"[blue]Verifying {len(downloads)} file(s)...[/blue]\n")
+
+        valid_count = 0
+        invalid_count = 0
+
+        for dl in downloads:
+            file_path = Path(dl.filename)
+
+            if not file_path.exists():
+                console.print(f"[red]MISSING[/red] {dl.filename}")
+                invalid_count += 1
+                continue
+
+            # Check file size
+            actual_size = file_path.stat().st_size
+            if dl.file_size and actual_size != dl.file_size:
+                console.print(f"[red]SIZE MISMATCH[/red] {dl.filename}")
+                console.print(f"  [dim]Expected: {dl.file_size}, Actual: {actual_size}[/dim]")
+                invalid_count += 1
+                continue
+
+            # Full verification with SHA256
+            if full and dl.sha256:
+                console.print(f"[dim]Checking SHA256 for {file_path.name}...[/dim]")
+                actual_hash = DownloadHistory.calculate_sha256(file_path)
+                if actual_hash != dl.sha256:
+                    console.print(f"[red]HASH MISMATCH[/red] {dl.filename}")
+                    console.print(f"  [dim]Expected: {dl.sha256[:16]}...[/dim]")
+                    console.print(f"  [dim]Actual:   {actual_hash[:16]}...[/dim]")
+                    invalid_count += 1
+                    continue
+
+            console.print(f"[green]OK[/green] {file_path.name}")
+            valid_count += 1
+
+        console.print(f"\n[bold]Verification Summary:[/bold]")
+        console.print(f"  [green]Valid: {valid_count}[/green]")
+        if invalid_count > 0:
+            console.print(f"  [red]Invalid: {invalid_count}[/red]")
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("clear-history")
+def clear_history(
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
+):
+    """
+    Clear all download history.
+
+    This removes all records from the history database but does not
+    delete any downloaded files.
+    """
+    try:
+        history = DownloadHistory()
+        count = history.count_downloads()
+
+        if count == 0:
+            console.print("[yellow]History is already empty[/yellow]")
+            return
+
+        if not force:
+            confirm = typer.confirm(f"Are you sure you want to clear {count} download record(s)?")
+            if not confirm:
+                console.print("[yellow]Cancelled[/yellow]")
+                return
+
+        deleted = history.clear_history()
+        console.print(f"[green]Cleared {deleted} download record(s)[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
         raise typer.Exit(code=1)
 
 

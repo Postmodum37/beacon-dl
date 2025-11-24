@@ -362,6 +362,12 @@ class TestDownloadFlow:
         # Change to tmp_path directory
         monkeypatch.chdir(tmp_path)
 
+        # Make merge create the output file (needed for SHA256 calculation)
+        def create_output_file(video_path, subtitle_files, output_path):
+            output_path.write_bytes(b"test video content")
+
+        mock_merge.side_effect = create_output_file
+
         # Process slug - should download
         downloader.download_slug("c4-e006-knives-and-thorns")
 

@@ -25,6 +25,7 @@ from rich.progress import (
 
 from .config import settings
 from .content import VideoContent, VideoSource, get_video_content
+from .history import DownloadHistory, VerifyResult
 from .utils import sanitize_filename
 
 console = Console()
@@ -80,6 +81,10 @@ class BeaconDownloader:
             console.print("[red]❌ Failed to get video content[/red]")
             sys.exit(1)
 
+        # Initialize download history
+        history = DownloadHistory()
+        content_id = content.metadata.id
+
         # Display info
         console.print(f"[green]Title:[/green] {content.metadata.title}")
         if content.metadata.collection_name:
@@ -101,9 +106,23 @@ class BeaconDownloader:
 
         console.print(f"[green]Output:[/green] {output_file}")
 
-        # Check if already exists
-        if output_file.exists():
-            console.print(f"[green]✓ Video already downloaded: {output_file}[/green]")
+        # Check download history first (fast, no file I/O needed)
+        if content_id and history.is_downloaded(content_id):
+            record = history.get_download(content_id)
+            if record and output_file.exists():
+                # Validate file size
+                actual_size = output_file.stat().st_size
+                if record.file_size and actual_size == record.file_size:
+                    console.print(f"[green]✓ Already downloaded (verified by content ID): {output_file}[/green]")
+                    return
+                else:
+                    console.print(f"[yellow]⚠️  File size mismatch (expected {record.file_size}, got {actual_size}), re-downloading...[/yellow]")
+            elif record:
+                console.print(f"[yellow]⚠️  File missing from disk, re-downloading...[/yellow]")
+        # Fallback to filename check (for files downloaded before history was added)
+        elif output_file.exists():
+            console.print(f"[green]✓ Video already exists: {output_file}[/green]")
+            console.print("[dim]Tip: Run 'beacon-dl verify' to add existing files to history[/dim]")
             return
 
         # Create temp directory
@@ -128,6 +147,21 @@ class BeaconDownloader:
             # Merge with ffmpeg
             console.print(f"\n[blue]==> Merging into {output_file}...[/blue]")
             self._merge_files(temp_video, subtitle_files, output_file)
+
+            # Calculate SHA256 and record download
+            if content_id:
+                console.print("[dim]Calculating file checksum...[/dim]")
+                file_size = output_file.stat().st_size
+                sha256 = DownloadHistory.calculate_sha256(output_file)
+                history.record_download(
+                    content_id=content_id,
+                    slug=slug,
+                    title=content.metadata.title,
+                    filename=str(output_file),
+                    file_size=file_size,
+                    sha256=sha256,
+                )
+                console.print(f"[dim]SHA256: {sha256[:16]}...[/dim]")
 
             console.print(f"[green]✓ Download complete: {output_file}[/green]")
 

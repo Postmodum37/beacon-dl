@@ -24,7 +24,16 @@ wheels/
 venv/
 ENV/
 env/
-.venv
+.venv/
+
+# Linting & Formatting
+.ruff_cache/
+.mypy_cache/
+
+# Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
 
 # Playwright
 playwright_profile/
@@ -34,7 +43,9 @@ playwright_profile/
 beacon_cookies.txt
 *.mkv
 *.mp4
+*.webm
 temp_dl/
+.beacon-dl-history.db
 
 # Debug files
 debug_*.py
@@ -52,12 +63,17 @@ login_error.png
 error_*.png
 curl_output.html
 
-# IDE
+# IDE & Editors
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+
+# AI Tools
+.claude/
+.serena/
+.spec-workflow/
 
 # OS
 .DS_Store
@@ -65,11 +81,8 @@ Thumbs.db
 
 # Environment
 .env
-
-# Coverage
-.coverage
-htmlcov/
-.pytest_cache/
+.env.local
+.env.*.local
 
 # Logs
 *.log
