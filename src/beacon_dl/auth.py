@@ -9,6 +9,78 @@ from .utils import detect_browser_profile
 console = Console()
 
 
+def are_cookies_valid_with_buffer(cookie_file: Path, buffer_hours: int = 6) -> bool:
+    """
+    Check if cookies are valid and not expiring soon.
+
+    This is used for cookie caching - if cookies are still valid with some buffer
+    time remaining, we can skip re-authentication entirely.
+
+    Args:
+        cookie_file: Path to Netscape format cookie file
+        buffer_hours: Hours before expiration to consider cookies invalid.
+                     Default 6 hours provides safety margin.
+
+    Returns:
+        True if cookies exist, contain beacon-session, and won't expire within buffer_hours
+    """
+    if not cookie_file.exists():
+        return False
+
+    try:
+        with open(cookie_file, "r") as f:
+            lines = f.readlines()
+
+        current_time = int(datetime.now().timestamp())
+        buffer_seconds = buffer_hours * 3600
+        threshold = current_time + buffer_seconds
+
+        beacon_session_found = False
+        beacon_tv_cookie_valid = False
+
+        for line in lines:
+            if line.startswith("#") or not line.strip():
+                continue
+
+            parts = line.strip().split("\t")
+            if len(parts) >= 7:
+                domain, _, _, _, expires, name, value = parts[:7]
+
+                # Check for beacon-session cookie (the critical auth cookie)
+                if name == "beacon-session" and "beacon.tv" in domain:
+                    beacon_session_found = True
+
+                    # Session cookies (expires=0) are considered valid
+                    if expires != "0":
+                        exp_time = int(expires)
+                        if exp_time < threshold:
+                            if settings.debug:
+                                console.print(f"[yellow]beacon-session cookie expiring within {buffer_hours}h[/yellow]")
+                            return False
+
+                # Track if we have any valid beacon.tv cookies
+                if "beacon.tv" in domain and "members.beacon.tv" not in domain:
+                    if expires == "0" or int(expires) > current_time:
+                        beacon_tv_cookie_valid = True
+
+        if not beacon_session_found:
+            if settings.debug:
+                console.print("[yellow]No beacon-session cookie found in cache[/yellow]")
+            return False
+
+        if not beacon_tv_cookie_valid:
+            if settings.debug:
+                console.print("[yellow]No valid beacon.tv cookies found in cache[/yellow]")
+            return False
+
+        return True
+
+    except Exception as e:
+        if settings.debug:
+            console.print(f"[yellow]Cookie cache check error: {e}[/yellow]")
+        return False
+
+
 def validate_cookies(cookie_file: Path) -> bool:
     """
     Validate that the cookie file contains required authentication cookies for BeaconTV.
@@ -99,11 +171,17 @@ def validate_cookies(cookie_file: Path) -> bool:
 
 def get_cookie_file() -> Optional[Path]:
     """
-    Get the cookie file path, creating it via authentication if needed.
+    Get the cookie file path, using cached cookies if valid.
 
-    This function determines where to get authentication cookies from:
-    1. If username/password provided: Login via Playwright and create cookie file
-    2. Otherwise: Return existing cookie file path if it exists
+    This function implements cookie caching to avoid re-authentication on every run:
+    1. If username/password provided AND valid cached cookies exist -> use cache
+    2. If username/password provided AND no valid cache -> perform login
+    3. If no credentials -> return existing cookie file if it exists
+
+    The cookie cache is considered valid if:
+    - beacon_cookies.txt exists
+    - Contains beacon-session cookie
+    - Cookie won't expire within cookie_expiry_buffer_hours (default 6h)
 
     Returns:
         Path to cookie file if available, None otherwise
@@ -115,8 +193,18 @@ def get_cookie_file() -> Optional[Path]:
     """
     cookie_file = Path("beacon_cookies.txt")
 
-    # If username and password provided, login and get fresh cookies
+    # If username and password provided, check cache before logging in
     if settings.beacon_username and settings.beacon_password:
+        # Check if valid cached cookies exist first
+        if cookie_file.exists():
+            buffer = getattr(settings, 'cookie_expiry_buffer_hours', 6)
+            if are_cookies_valid_with_buffer(cookie_file, buffer_hours=buffer):
+                console.print("[green]✓ Using cached cookies (still valid)[/green]")
+                return cookie_file
+            else:
+                console.print("[yellow]Cached cookies invalid or expiring soon[/yellow]")
+
+        # Cookies missing, invalid, or expiring - perform login
         console.print("[blue]Logging in with Playwright to get fresh cookies...[/blue]")
         cookie_file = login_and_get_cookies(
             username=settings.beacon_username,
@@ -182,13 +270,8 @@ def login_and_get_cookies(username: str, password: str, target_url: Optional[str
 
     console.print("[yellow]Logging in to Beacon TV via Playwright...[/yellow]")
 
-    # Clear persistent browser context to ensure fresh login
+    # Keep browser profile between runs for faster subsequent logins
     user_data_dir = Path("playwright_profile")
-    if user_data_dir.exists():
-        import shutil
-        if settings.debug:
-            console.print("[dim]Clearing old browser profile for fresh login[/dim]")
-        shutil.rmtree(user_data_dir)
     user_data_dir.mkdir(exist_ok=True)
 
     with sync_playwright() as p:
@@ -230,17 +313,14 @@ def login_and_get_cookies(username: str, password: str, target_url: Optional[str
                 console.print("[dim]Email filled[/dim]")
                 # SECURITY: No screenshot after email entry (could expose credentials)
 
-            # Step 2: Click Continue button
+            # Step 2: Click Continue button and wait for password field (dynamic wait)
             console.print("Clicking continue button...")
             page.click(".btn-branding")
-            page.wait_for_timeout(2000)  # Wait for transition
+            # Dynamic wait for password field instead of fixed 2s delay
+            page.wait_for_selector("#session_password", timeout=10000)
 
             if settings.debug:
-                console.print("[dim]Continue button clicked[/dim]")
-
-            # Step 3: Wait for password field and enter password
-            console.print("Waiting for password field...")
-            page.wait_for_selector("#session_password", timeout=10000)
+                console.print("[dim]Continue clicked, password field ready[/dim]")
 
             console.print("Entering password...")
             page.fill("#session_password", password)
@@ -256,16 +336,14 @@ def login_and_get_cookies(username: str, password: str, target_url: Optional[str
             if settings.debug:
                 console.print("[dim]Sign in button clicked[/dim]")
 
-            # Step 5: Wait for redirect chain to complete
+            # Step 4: Wait for redirect chain to complete
             # After login, members.beacon.tv redirects through a callback URL
-            # that sets the beacon-session cookie on beacon.tv
-            console.print("Waiting for login redirect chain to complete...")
+            console.print("Waiting for login redirect...")
 
             # Wait for any navigation away from sign_in
             page.wait_for_url(lambda url: "sign_in" not in url, timeout=30000)
-
-            # Give time for any redirect callbacks
-            page.wait_for_timeout(3000)
+            # Dynamic wait for network to settle instead of fixed 3s delay
+            page.wait_for_load_state("networkidle", timeout=10000)
 
             if settings.debug:
                 console.print(f"[dim]Current URL after login: {page.url}[/dim]")
@@ -273,55 +351,43 @@ def login_and_get_cookies(username: str, password: str, target_url: Optional[str
 
             console.print("[green]Login successful on members.beacon.tv[/green]")
 
-            # Handle cookie consent banner that appears AFTER login
+            # Handle cookie consent banner if present (quick check, no fixed delays)
             try:
-                console.print("Checking for post-login cookie banner...")
-                page.wait_for_timeout(2000)  # Wait for banner to appear
                 accept_button = page.locator("button:has-text('Accept'), button:has-text('I Agree'), button:has-text('I Accept'), button:has-text('Accept All')")
                 if accept_button.count() > 0:
-                    console.print("Accepting cookies...")
-                    accept_button.first.click()
-                    page.wait_for_timeout(1000)
+                    accept_button.first.click(timeout=2000)
             except:
                 pass  # Cookie banner might not appear
 
-            # CRITICAL: Navigate to beacon.tv and trigger SSO to get beacon-session cookie
-            # BeaconTV uses members.beacon.tv for login but beacon.tv for content
-            # We need to click "Login" on beacon.tv to establish the session via SSO
-            console.print("[yellow]Establishing session on beacon.tv via SSO...[/yellow]")
+            # Navigate to beacon.tv and trigger SSO to get beacon-session cookie
+            console.print("[yellow]Establishing session on beacon.tv...[/yellow]")
 
-            # Step 1: Navigate to homepage
+            # Navigate to homepage with dynamic wait
             page.goto("https://beacon.tv", wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(3000)
-            console.print("[green]✓ Loaded beacon.tv homepage[/green]")
+            page.wait_for_load_state("networkidle", timeout=10000)
 
-            # Step 2: Click the Login button to trigger SSO
-            # Since we're already logged into members.beacon.tv, this will create the beacon-session cookie
-            try:
-                console.print("[yellow]Clicking Login button to trigger SSO...[/yellow]")
-                login_button = page.locator("a:has-text('Login'), button:has-text('Login')").first
-                login_button.click(timeout=5000)
-                page.wait_for_timeout(5000)  # Wait for SSO to complete
-                console.print("[green]✓ SSO completed - beacon-session cookie established[/green]")
+            # Check if already logged in (look for user menu or profile indicator)
+            already_logged_in = page.locator("[data-testid='user-menu'], .user-avatar, .profile-link, .account-menu").count() > 0
 
-                if settings.debug:
-                    console.print(f"[dim]Current URL after SSO: {page.url}[/dim]")
-                    page.screenshot(path="debug_05_after_sso.png")
+            if not already_logged_in:
+                # Click Login button to trigger SSO
+                try:
+                    login_button = page.locator("a:has-text('Login'), button:has-text('Login')").first
+                    login_button.click(timeout=5000)
+                    # Dynamic wait for SSO to complete
+                    page.wait_for_load_state("networkidle", timeout=15000)
+                    console.print("[green]✓ SSO completed[/green]")
+                except Exception as e:
+                    if settings.debug:
+                        console.print(f"[dim]Login button not found: {e}[/dim]")
+            else:
+                console.print("[green]✓ Already authenticated via SSO[/green]")
 
-            except Exception as e:
-                console.print(f"[yellow]⚠️  Could not click Login button (may already be logged in): {e}[/yellow]")
-
-            # Step 3: Navigate to content page to ensure all content cookies are set
-            page.goto("https://beacon.tv/content", wait_until="domcontentloaded", timeout=30000)
-            page.wait_for_timeout(3000)
-            console.print("[green]✓ Loaded beacon.tv/content page[/green]")
-
-            # Step 4: If target URL provided, navigate to it
+            # Navigate to target URL if provided (skip /content navigation - not needed)
             if target_url:
-                console.print(f"[yellow]Navigating to target URL: {target_url}[/yellow]")
+                console.print(f"[yellow]Navigating to: {target_url}[/yellow]")
                 page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
-                page.wait_for_timeout(3000)
-                console.print("[green]✓ Loaded target content page[/green]")
+                page.wait_for_load_state("networkidle", timeout=10000)
 
             # Extract ALL cookies from the persistent context
             console.print("Extracting cookies from all beacon.tv domains...")
@@ -348,8 +414,11 @@ def login_and_get_cookies(username: str, password: str, target_url: Optional[str
 
         except Exception as e:
             console.print(f"[red]Login failed: {e}[/red]")
-            # Maybe take screenshot?
             page.screenshot(path="login_error.png")
+            # Clear browser profile on failure to force fresh session next time
+            import shutil
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+            console.print("[yellow]Browser profile cleared - will retry with fresh session[/yellow]")
             raise e
         finally:
             context.close()

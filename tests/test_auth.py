@@ -2,8 +2,9 @@
 
 import pytest
 from pathlib import Path
+from datetime import datetime
 from unittest.mock import patch, MagicMock
-from src.beacon_dl.auth import validate_cookies, get_auth_args
+from src.beacon_dl.auth import validate_cookies, get_auth_args, are_cookies_valid_with_buffer
 from src.beacon_dl.config import Settings
 
 
@@ -61,6 +62,67 @@ class TestCookieValidation:
         )
         # Should pass because at least one valid cookie exists
         assert validate_cookies(cookie_file)
+
+
+class TestCookieCaching:
+    """Tests for cookie caching with expiry buffer."""
+
+    def test_valid_cookies_with_buffer(self, tmp_path):
+        """Test cookies are valid when not expiring soon."""
+        cookie_file = tmp_path / "cookies.txt"
+        # Create beacon-session cookie expiring far in the future
+        cookie_file.write_text(
+            "# Netscape HTTP Cookie File\n"
+            ".beacon.tv\tTRUE\t/\tTRUE\t9999999999\tbeacon-session\txyz789\n"
+        )
+        assert are_cookies_valid_with_buffer(cookie_file, buffer_hours=6)
+
+    def test_cookies_expiring_soon(self, tmp_path):
+        """Test cookies are invalid when expiring within buffer."""
+        cookie_file = tmp_path / "cookies.txt"
+        # Create beacon-session cookie expiring in 1 hour
+        expires_soon = int(datetime.now().timestamp()) + 3600  # 1 hour from now
+        cookie_file.write_text(
+            f"# Netscape HTTP Cookie File\n"
+            f".beacon.tv\tTRUE\t/\tTRUE\t{expires_soon}\tbeacon-session\txyz789\n"
+        )
+        # Should be invalid with 6 hour buffer (expires in 1 hour < 6 hour buffer)
+        assert not are_cookies_valid_with_buffer(cookie_file, buffer_hours=6)
+
+    def test_cookies_valid_with_small_buffer(self, tmp_path):
+        """Test cookies are valid with small buffer time."""
+        cookie_file = tmp_path / "cookies.txt"
+        # Create beacon-session cookie expiring in 2 hours
+        expires = int(datetime.now().timestamp()) + 7200  # 2 hours from now
+        cookie_file.write_text(
+            f"# Netscape HTTP Cookie File\n"
+            f".beacon.tv\tTRUE\t/\tTRUE\t{expires}\tbeacon-session\txyz789\n"
+        )
+        # Should be valid with 1 hour buffer
+        assert are_cookies_valid_with_buffer(cookie_file, buffer_hours=1)
+
+    def test_no_beacon_session_cookie(self, tmp_path):
+        """Test cookies are invalid without beacon-session cookie."""
+        cookie_file = tmp_path / "cookies.txt"
+        cookie_file.write_text(
+            "# Netscape HTTP Cookie File\n"
+            ".beacon.tv\tTRUE\t/\tTRUE\t9999999999\tother_cookie\txyz789\n"
+        )
+        assert not are_cookies_valid_with_buffer(cookie_file, buffer_hours=6)
+
+    def test_session_cookie_always_valid(self, tmp_path):
+        """Test session cookies (expires=0) are always considered valid."""
+        cookie_file = tmp_path / "cookies.txt"
+        cookie_file.write_text(
+            "# Netscape HTTP Cookie File\n"
+            ".beacon.tv\tTRUE\t/\tTRUE\t0\tbeacon-session\txyz789\n"
+        )
+        assert are_cookies_valid_with_buffer(cookie_file, buffer_hours=6)
+
+    def test_file_not_found(self, tmp_path):
+        """Test returns False when cookie file doesn't exist."""
+        cookie_file = tmp_path / "nonexistent.txt"
+        assert not are_cookies_valid_with_buffer(cookie_file, buffer_hours=6)
 
 
 class TestAuthArgs:

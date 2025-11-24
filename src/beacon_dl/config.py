@@ -91,4 +91,15 @@ class Settings(BaseSettings):
     # Debug
     debug: bool = Field(default=False, validation_alias="DEBUG")
 
+    # Cookie caching
+    cookie_expiry_buffer_hours: int = Field(default=6, validation_alias="COOKIE_EXPIRY_BUFFER_HOURS")
+
+    @field_validator('cookie_expiry_buffer_hours')
+    @classmethod
+    def validate_buffer_hours(cls, v: int) -> int:
+        """Validate buffer hours is reasonable (0-24)."""
+        if v < 0 or v > 24:
+            raise ValueError('cookie_expiry_buffer_hours must be between 0 and 24')
+        return v
+
 settings = Settings()

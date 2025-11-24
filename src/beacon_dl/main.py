@@ -14,8 +14,27 @@ from .config import settings
 from .graphql import BeaconGraphQL
 from .auth import get_cookie_file
 
-app = typer.Typer(help="Beacon TV Downloader - Simplified direct download")
+app = typer.Typer(
+    help="Beacon TV Downloader - Simplified direct download",
+    invoke_without_command=True,
+    no_args_is_help=False,
+)
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context):
+    """Default to download command when no subcommand is provided."""
+    if ctx.invoked_subcommand is None:
+        # No subcommand provided - run download with defaults
+        download(
+            url=None,
+            username=None,
+            password=None,
+            browser=None,
+            series=None,
+            debug=False,
+        )
 
 
 def get_authenticated_cookie_file(
