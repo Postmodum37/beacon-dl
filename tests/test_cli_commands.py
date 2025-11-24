@@ -162,7 +162,7 @@ class TestBatchDownloadCommand:
 
         assert result.exit_code == 0
         assert "Found 2 episodes" in result.stdout
-        assert mock_downloader.return_value.process_url.call_count == 2
+        assert mock_downloader.return_value.download_url.call_count == 2
 
     @patch('src.beacon_dl.main.BeaconDownloader')
     def test_batch_download_with_range(
@@ -178,35 +178,31 @@ class TestBatchDownloadCommand:
         result = runner.invoke(app, ["batch-download", "test-series", "--start", "1", "--end", "2"])
 
         assert result.exit_code == 0
-        assert mock_downloader.return_value.process_url.call_count == 2
+        assert mock_downloader.return_value.download_url.call_count == 2
 
 
 class TestDownloadCommand:
     """Test main download command."""
 
     @patch('src.beacon_dl.main.BeaconDownloader')
-    @patch('src.beacon_dl.main.get_latest_episode_url')
-    @patch('src.beacon_dl.main.get_cookie_file')
     def test_download_without_url_fetches_latest(
-        self, mock_get_cookie, mock_get_latest, mock_downloader, tmp_path
+        self, mock_downloader, mock_graphql_client, mock_cookie_file
     ):
         """Test download without URL fetches latest episode."""
-        # Setup mock cookie file
-        cookie_file = tmp_path / "test_cookies.txt"
-        cookie_file.write_text("# Netscape HTTP Cookie File\n")
-        mock_get_cookie.return_value = cookie_file
-
-        mock_get_latest.return_value = "https://beacon.tv/content/latest-episode"
+        mock_graphql_client.get_latest_episode.return_value = {
+            "slug": "latest-episode",
+            "title": "Latest Episode",
+        }
 
         # Explicitly call "download" command with no URL argument
         result = runner.invoke(app, ["download"])
 
         assert result.exit_code == 0
-        mock_get_latest.assert_called_once()
-        mock_downloader.return_value.process_url.assert_called_once()
+        mock_graphql_client.get_latest_episode.assert_called_once()
+        mock_downloader.return_value.download_url.assert_called_once()
 
     @patch('src.beacon_dl.main.BeaconDownloader')
-    def test_download_with_url(self, mock_downloader):
+    def test_download_with_url(self, mock_downloader, mock_cookie_file):
         """Test download with specific URL."""
         url = "https://beacon.tv/content/test-episode"
 
@@ -214,7 +210,7 @@ class TestDownloadCommand:
         result = runner.invoke(app, ["download", url])
 
         assert result.exit_code == 0
-        mock_downloader.return_value.process_url.assert_called_once_with(url)
+        mock_downloader.return_value.download_url.assert_called_once_with(url)
 
     @patch('src.beacon_dl.main.BeaconDownloader')
     def test_download_with_series_option(self, mock_downloader, mock_graphql_client, mock_cookie_file):

@@ -6,20 +6,32 @@ direct download method.
 """
 
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
-import requests
+import httpx
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, DownloadColumn, TransferSpeedColumn
+from rich.progress import (
+    Progress,
+    BarColumn,
+    DownloadColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
 
 from .config import settings
 from .content import VideoContent, VideoSource, get_video_content
 from .utils import sanitize_filename
 
 console = Console()
+
+# HTTP client with retry support and connection pooling
+DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+DEFAULT_TRANSPORT = httpx.HTTPTransport(retries=3)
 
 
 class BeaconDownloader:
@@ -32,8 +44,12 @@ class BeaconDownloader:
             cookie_file: Path to Netscape format cookie file for authentication
         """
         self.cookie_file = cookie_file
-        self.session = requests.Session()
-        self.session.headers.update({"User-Agent": settings.user_agent})
+        self.client = httpx.Client(
+            timeout=DEFAULT_TIMEOUT,
+            transport=DEFAULT_TRANSPORT,
+            headers={"User-Agent": settings.user_agent},
+            follow_redirects=True,
+        )
 
     def download_url(self, url: str) -> None:
         """Download video from a beacon.tv URL.
@@ -117,7 +133,6 @@ class BeaconDownloader:
 
         finally:
             # Cleanup
-            import shutil
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
 
@@ -240,34 +255,40 @@ class BeaconDownloader:
             show_progress: Whether to show progress bar
         """
         try:
-            resp = self.session.get(url, stream=True, timeout=30)
-            resp.raise_for_status()
+            with self.client.stream("GET", url) as response:
+                response.raise_for_status()
+                total_size = int(response.headers.get("content-length", 0))
 
-            total_size = int(resp.headers.get("content-length", 0))
+                if show_progress and total_size > 0:
+                    with Progress(
+                        TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
+                        BarColumn(bar_width=None),
+                        "[progress.percentage]{task.percentage:>3.1f}%",
+                        "•",
+                        DownloadColumn(),
+                        "•",
+                        TransferSpeedColumn(),
+                        "•",
+                        TimeRemainingColumn(),
+                        console=console,
+                        transient=True,
+                    ) as progress:
+                        filename = dest.name[:30] + "..." if len(dest.name) > 30 else dest.name
+                        task = progress.add_task("download", filename=filename, total=total_size)
 
-            if show_progress and total_size > 0:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    DownloadColumn(),
-                    TransferSpeedColumn(),
-                    console=console,
-                ) as progress:
-                    task = progress.add_task("Downloading", total=total_size)
-
-                    with open(dest, "wb") as f:
-                        for chunk in resp.iter_content(chunk_size=8192):
-                            if chunk:
+                        with open(dest, "wb") as f:
+                            for chunk in response.iter_bytes(chunk_size=65536):
                                 f.write(chunk)
-                                progress.update(task, advance=len(chunk))
-            else:
-                with open(dest, "wb") as f:
-                    for chunk in resp.iter_content(chunk_size=8192):
-                        if chunk:
+                                progress.update(task, completed=response.num_bytes_downloaded)
+                else:
+                    with open(dest, "wb") as f:
+                        for chunk in response.iter_bytes(chunk_size=65536):
                             f.write(chunk)
 
-        except requests.RequestException as e:
+        except httpx.HTTPStatusError as e:
+            console.print(f"[red]❌ Download failed (HTTP {e.response.status_code}): {e}[/red]")
+            raise
+        except httpx.RequestError as e:
             console.print(f"[red]❌ Download failed: {e}[/red]")
             raise
 

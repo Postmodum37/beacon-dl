@@ -7,11 +7,13 @@ class Settings(BaseSettings):
     """Configuration settings for Beacon TV downloader.
 
     All user-controllable settings are validated to prevent injection attacks.
+    Supports loading secrets from Docker secrets directory (/run/secrets).
     """
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        populate_by_name=True  # Allow both field names and aliases
+        populate_by_name=True,  # Allow both field names and aliases
+        secrets_dir="/run/secrets",  # Docker secrets support
     )
 
     release_group: str = Field(default="Pawsty", validation_alias="RELEASE_GROUP")

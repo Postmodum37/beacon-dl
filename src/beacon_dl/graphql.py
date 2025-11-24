@@ -9,10 +9,15 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List
 import http.cookiejar
 import re
-import requests
+
+import httpx
 from rich.console import Console
 
 console = Console()
+
+# HTTP client with retry support
+DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+DEFAULT_TRANSPORT = httpx.HTTPTransport(retries=3)
 
 
 def validate_slug(slug: str, field_name: str = "slug") -> str:
@@ -115,22 +120,25 @@ class BeaconGraphQL:
             GraphQL response data
 
         Raises:
-            requests.HTTPError: If the request fails
+            httpx.HTTPStatusError: If the request fails
         """
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
 
-        response = requests.post(
-            self.endpoint,
-            json=payload,
+        with httpx.Client(
+            timeout=DEFAULT_TIMEOUT,
+            transport=DEFAULT_TRANSPORT,
             cookies=self.cookies,
-            headers={"Content-Type": "application/json"},
-            timeout=10,
-        )
-        response.raise_for_status()
+        ) as client:
+            response = client.post(
+                self.endpoint,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            response.raise_for_status()
 
-        data = response.json()
+            data = response.json()
 
         # Check for GraphQL errors
         if "errors" in data:

@@ -12,12 +12,16 @@ from pathlib import Path
 from typing import Optional
 import http.cookiejar
 
-import requests
+import httpx
 from rich.console import Console
 
 from .config import settings
 
 console = Console()
+
+# HTTP client with retry support
+DEFAULT_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+DEFAULT_TRANSPORT = httpx.HTTPTransport(retries=3)
 
 
 @dataclass
@@ -109,15 +113,20 @@ def fetch_content_page(slug: str, cookie_file: Path) -> Optional[str]:
     console.print(f"[dim]Fetching {url}...[/dim]")
 
     try:
-        resp = requests.get(
-            url,
+        with httpx.Client(
+            timeout=DEFAULT_TIMEOUT,
+            transport=DEFAULT_TRANSPORT,
             cookies=cookies,
             headers={"User-Agent": settings.user_agent},
-            timeout=30,
-        )
-        resp.raise_for_status()
-        return resp.text
-    except requests.RequestException as e:
+            follow_redirects=True,
+        ) as client:
+            resp = client.get(url)
+            resp.raise_for_status()
+            return resp.text
+    except httpx.HTTPStatusError as e:
+        console.print(f"[red]❌ Failed to fetch content page (HTTP {e.response.status_code}): {e}[/red]")
+        return None
+    except httpx.RequestError as e:
         console.print(f"[red]❌ Failed to fetch content page: {e}[/red]")
         return None
 

@@ -156,26 +156,6 @@ class TestGraphQLClientSecurity:
         assert result is None  # Invalid slug causes None return, not exception
 
 
-class TestURLSlugExtraction:
-    """Test slug extraction from URLs is secure."""
-
-    def test_series_url_slug_extraction_rejects_malicious_slugs(self):
-        """Test that malicious slugs in URLs are rejected."""
-        from src.beacon_dl.utils import get_latest_episode_url
-
-        # These URLs produce invalid slugs after extraction (split("/")[-1])
-        # Note: '../etc/passwd' extracts to 'passwd' which is valid, so we use direct invalid chars
-        malicious_urls = [
-            'https://beacon.tv/series/test;evil',  # semicolon is invalid
-            'https://beacon.tv/series/test@evil',  # @ is invalid
-            'https://beacon.tv/series/test$evil',  # $ is invalid
-        ]
-
-        for url in malicious_urls:
-            with pytest.raises(ValueError, match="Invalid"):
-                get_latest_episode_url(url, None)
-
-
 @pytest.mark.security
 class TestConfigValidationSecurity:
     """Test configuration validation prevents injection."""
