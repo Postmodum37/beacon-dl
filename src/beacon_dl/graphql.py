@@ -3,6 +3,27 @@
 This module provides a client for querying the beacon.tv GraphQL API to fetch
 content metadata, series information, and episode listings. This replaces
 slower Playwright-based web scraping with fast, structured API calls.
+
+API Endpoint: https://beacon.tv/api/graphql
+Authentication: beacon-session cookie (obtained via Playwright login)
+
+Discovered Schema (2025-11-24):
+    - Contents: Episodes, articles, one-shots with metadata
+    - Collections: Series and collection groupings
+    - search: Powerful custom query with filtering and pagination
+    - Categories, Tags: Content categorization
+    - Videos: Video metadata (but playlistUrl not accessible via API)
+
+Limitations:
+    - Video URLs (playlistUrl) return null - still need yt-dlp for downloads
+    - ViewHistories returns 403 Forbidden - watch progress not accessible
+    - meMember.user returns null - member profile not accessible
+    - API requires literal values in where clauses, not GraphQL variables
+
+Content Types:
+    - videoPodcast: Video content with podcast feed
+    - article: Text-based content
+    - livestream: Live streaming content
 """
 
 from pathlib import Path
@@ -73,8 +94,31 @@ class BeaconGraphQL:
     """
 
     # Known collection slugs to IDs (cached for performance)
+    # Discovered via GraphQL introspection on 2025-11-24
     COLLECTION_CACHE: Dict[str, str] = {
+        "4-sided-dive": "65b254ac78f89be87b4dbeb8",
+        "age-of-umbra": "6827b1bed18cf5fdafa5e57e",
+        "all-work-no-play": "66067c5dc1ffa829c389b7aa",
+        "campaign-1-infinights-tales-from-the-stinky-dragon": "66f36f993b411022057dc8fb",
+        "campaign-2-grotethe-tales-from-the-stinky-dragon": "66f36ff55bdb51837c543cd2",
+        "campaign-2-the-mighty-nein": "660676d5c1ffa829c389a4c7",
+        "campaign-3-bells-hells": "65b2548e78f89be87b4dbe9a",
+        "campaign-3-kanon-tales-from-the-stinky-dragon": "66f3708e91e18e3e38b3b460",
         "campaign-4": "68caf69e7a76bce4b7aa689a",
+        "candela-obscura": "66067a09c1ffa829c389a65e",
+        "crit-recap-animated": "663588c574598feedb62290f",
+        "critical-cooldown": "663012bf624e86a8e0a20a11",
+        "critical-role-abridged": "6616fa3b1fa3e938e56cf5ee",
+        "exandria-unlimited": "662c3b58fd8fbf1731b32f48",
+        "fireside-chat": "6632a932c7641d946e1e9e41",
+        "midst": "65b25a0478f89be87b4dc1d4",
+        "moonward": "66a194d052248ebdd8d22ae1",
+        "narrative-telephone": "6616ff227fdbd0e3fc6ae1c0",
+        "re-slayers-take": "663b31be33a09eef3a773b5a",
+        "thresher": "6802a0a9d2fad35616589918",
+        "unend": "66f34b7397a421f24c60213e",
+        "weird-kids": "67c4212a45894204e65efaf0",
+        "wildemount-wildlings": "67e46b7b00458864a1e0b8c8",
     }
 
     def __init__(self, cookie_file: Path | str):
@@ -243,6 +287,7 @@ class BeaconGraphQL:
               releaseDate
               duration
               description
+              contentType
               primaryCollection {{
                 id
                 name
@@ -298,6 +343,7 @@ class BeaconGraphQL:
               releaseDate
               duration
               description
+              contentType
               primaryCollection {{
                 id
                 name
@@ -372,6 +418,7 @@ class BeaconGraphQL:
               releaseDate
               duration
               description
+              contentType
             }}
           }}
         }}
@@ -410,8 +457,11 @@ class BeaconGraphQL:
               name
               slug
               isSeries
+              isPodcast
               itemCount
+              releaseDate
             }}
+            totalDocs
           }}
         }}
         """
@@ -450,7 +500,10 @@ class BeaconGraphQL:
             name
             slug
             isSeries
+            isPodcast
             itemCount
+            episodeSortPreference
+            releaseDate
           }}
         }}
         """
@@ -461,3 +514,173 @@ class BeaconGraphQL:
         except Exception as e:
             console.print(f"[yellow]⚠️  GraphQL query failed: {e}[/yellow]")
             return None
+
+    def search(
+        self,
+        collection_slug: Optional[str] = None,
+        content_types: Optional[List[str]] = None,
+        search_text: Optional[str] = None,
+        sort: str = "-releaseDate",
+        limit: int = 20,
+        page: int = 1,
+    ) -> Dict[str, Any]:
+        """Search for content with flexible filters.
+
+        This uses the custom `search` query endpoint which provides powerful
+        filtering and pagination capabilities.
+
+        Args:
+            collection_slug: Optional collection slug to filter by (e.g., "campaign-4")
+            content_types: Optional list of content types (e.g., ["videoPodcast", "article"])
+            search_text: Optional text to search for in titles/descriptions
+            sort: Sort order (default: "-releaseDate" for newest first)
+            limit: Maximum results per page (default: 20)
+            page: Page number for pagination (default: 1)
+
+        Returns:
+            Dict with keys: docs (list of content), totalDocs, page, totalPages
+
+        Example:
+            >>> result = client.search(collection_slug="campaign-4", limit=5)
+            >>> print(f"Found {result['totalDocs']} episodes")
+            >>> for ep in result['docs']:
+            ...     print(f"  {ep['title']}")
+        """
+        # Build query arguments
+        args = [f'sort: "{sort}"', f"limit: {limit}", f"page: {page}"]
+
+        if collection_slug:
+            try:
+                collection_id = self._get_collection_id(collection_slug)
+                args.append(f'collection: "{collection_id}"')
+            except ValueError as e:
+                console.print(f"[yellow]⚠️  {e}[/yellow]")
+                return {"docs": [], "totalDocs": 0, "page": 1, "totalPages": 0}
+
+        if content_types:
+            types_str = ", ".join(f'"{t}"' for t in content_types)
+            args.append(f"contentTypes: [{types_str}]")
+
+        if search_text:
+            # Escape quotes in search text
+            escaped_text = search_text.replace('"', '\\"')
+            args.append(f'search: "{escaped_text}"')
+
+        args_str = ", ".join(args)
+
+        query = f"""
+        query Search {{
+          search({args_str}) {{
+            docs {{
+              id
+              title
+              slug
+              seasonNumber
+              episodeNumber
+              releaseDate
+              duration
+              contentType
+              description
+              primaryCollection {{
+                id
+                name
+                slug
+              }}
+            }}
+            totalDocs
+            page
+            totalPages
+          }}
+        }}
+        """
+
+        try:
+            response = self._query(query)
+            return response.get("data", {}).get("search", {
+                "docs": [],
+                "totalDocs": 0,
+                "page": 1,
+                "totalPages": 0
+            })
+        except Exception as e:
+            console.print(f"[yellow]⚠️  GraphQL search failed: {e}[/yellow]")
+            return {"docs": [], "totalDocs": 0, "page": 1, "totalPages": 0}
+
+    def get_latest_content(
+        self,
+        limit: int = 10,
+        episodic_only: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Get the latest content across all collections.
+
+        Args:
+            limit: Maximum number of results (default: 10)
+            episodic_only: Only return episodic content with season/episode numbers
+
+        Returns:
+            List of content metadata dicts sorted by release date (newest first)
+
+        Example:
+            >>> latest = client.get_latest_content(limit=5)
+            >>> for content in latest:
+            ...     print(f"{content['title']} - {content['primaryCollection']['name']}")
+        """
+        episodic_filter = ""
+        if episodic_only:
+            episodic_filter = """
+              seasonNumber: { not_equals: null }
+              episodeNumber: { not_equals: null }
+            """
+
+        where_clause = f"where: {{ {episodic_filter} }}" if episodic_filter else ""
+
+        query = f"""
+        query GetLatestContent {{
+          Contents(
+            {where_clause}
+            sort: "-releaseDate"
+            limit: {limit}
+          ) {{
+            docs {{
+              id
+              title
+              slug
+              seasonNumber
+              episodeNumber
+              releaseDate
+              duration
+              contentType
+              primaryCollection {{
+                id
+                name
+                slug
+              }}
+            }}
+          }}
+        }}
+        """
+
+        try:
+            response = self._query(query)
+            return response.get("data", {}).get("Contents", {}).get("docs", [])
+        except Exception as e:
+            console.print(f"[yellow]⚠️  GraphQL query failed: {e}[/yellow]")
+            return []
+
+    def count_collection_items(self, collection_slug: str) -> int:
+        """Get the number of items in a collection.
+
+        Args:
+            collection_slug: Collection slug (e.g., "campaign-4")
+
+        Returns:
+            Number of items in the collection
+
+        Example:
+            >>> count = client.count_collection_items("campaign-4")
+            >>> print(f"Campaign 4 has {count} episodes")
+        """
+        info = self.get_collection_info(collection_slug)
+        if info and "itemCount" in info:
+            return int(info["itemCount"])
+        return 0

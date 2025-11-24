@@ -4,6 +4,59 @@
 
 Successfully discovered and tested the BeaconTV GraphQL API at `https://beacon.tv/api/graphql`. The API provides rich content metadata and can significantly improve the downloader by replacing web scraping with direct API calls.
 
+## Latest Investigation (2025-11-24)
+
+### New Discoveries
+
+**`search` Query Endpoint**: Powerful custom query with flexible filtering:
+```graphql
+query Search {
+  search(
+    collection: "68caf69e7a76bce4b7aa689a"  # Must use ID, not slug
+    contentTypes: ["videoPodcast"]
+    sort: "-releaseDate"
+    limit: 5
+  ) {
+    docs { id title slug seasonNumber episodeNumber releaseDate duration }
+    totalDocs
+    page
+    totalPages
+  }
+}
+```
+
+**All 23 Series Discovered** (with IDs cached in `graphql.py`):
+- Campaign 4: `68caf69e7a76bce4b7aa689a` (12 episodes)
+- Campaign 3: Bells Hells: `65b2548e78f89be87b4dbe9a` (133 episodes)
+- Campaign 2: The Mighty Nein: `660676d5c1ffa829c389a4c7` (123 episodes)
+- Candela Obscura: `66067a09c1ffa829c389a65e` (23 episodes)
+- Exandria Unlimited: `662c3b58fd8fbf1731b32f48` (25 episodes)
+- And 18 more...
+
+**New Content Fields**:
+- `contentType`: "videoPodcast", "article", "livestream"
+- `isPodcast`: Boolean on Collections
+- `episodeSortPreference`: Collection sorting preference
+
+### Confirmed Limitations
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `contentVideo.video.playlistUrl` | Returns `null` | Video URLs not exposed - need yt-dlp |
+| `ViewHistories` | 403 Forbidden | Watch progress not accessible |
+| `meMember.user` | Returns `null` | Member profile not accessible |
+| GraphQL variables in `where` | Not supported | Must use literal values |
+
+### Implementation Updates
+
+Added to `graphql.py`:
+1. **`search()` method** - Flexible search with pagination
+2. **`get_latest_content()` method** - Latest across all collections
+3. **`count_collection_items()` method** - Quick episode count
+4. **All 23 series IDs** cached for instant lookups
+5. **`contentType` field** added to all content queries
+6. **`isPodcast`, `episodeSortPreference`** added to collection queries
+
 ## Authentication
 
 **Works with**: beacon-session cookie only (no additional Bearer token required)
