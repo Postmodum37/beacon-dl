@@ -291,3 +291,56 @@ class TestListSeriesAdditional:
             result = runner.invoke(app, ["list-series"])
 
             assert result.exit_code == 1
+
+
+class TestRenameCommand:
+    """Test rename command."""
+
+    def test_rename_dry_run_no_files(self, tmp_path):
+        """Test rename with no matching files."""
+        result = runner.invoke(app, ["rename", str(tmp_path)])
+
+        assert result.exit_code == 0
+        assert "No files found" in result.output
+
+    def test_rename_dry_run_with_files(self, tmp_path):
+        """Test rename shows what would be renamed."""
+        # Create a file with old naming schema (with release group)
+        old_file = tmp_path / "Critical.Role.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        old_file.touch()
+
+        result = runner.invoke(app, ["rename", str(tmp_path)])
+
+        assert result.exit_code == 0
+        assert "WOULD RENAME" in result.output
+        assert "Pawsty" in result.output
+
+    def test_rename_execute_renames_file(self, tmp_path):
+        """Test rename actually renames file with --execute."""
+        # Create a file with old naming schema
+        old_file = tmp_path / "Critical.Role.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        old_file.touch()
+
+        result = runner.invoke(app, ["rename", str(tmp_path), "--execute"])
+
+        assert result.exit_code == 0
+        assert "RENAMED" in result.output
+
+        # Verify the file was renamed
+        new_file = tmp_path / "Critical.Role.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264.mkv"
+        assert new_file.exists()
+        assert not old_file.exists()
+
+    def test_rename_skips_when_target_exists(self, tmp_path):
+        """Test rename skips when target file already exists."""
+        # Create both old and new files
+        old_file = tmp_path / "Test.File-Group.mkv"
+        old_file.touch()
+        new_file = tmp_path / "Test.File.mkv"
+        new_file.touch()
+
+        result = runner.invoke(app, ["rename", str(tmp_path), "--execute"])
+
+        assert result.exit_code == 0
+        assert "SKIP" in result.output
+        assert "Target already exists" in result.output

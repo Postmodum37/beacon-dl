@@ -108,7 +108,7 @@ def download(
             settings.debug = debug
             console.print("[yellow]Debug mode enabled[/yellow]")
             console.print(
-                f"[dim]Settings: release_group={settings.release_group}, resolution={settings.preferred_resolution}[/dim]"
+                f"[dim]Settings: resolution={settings.preferred_resolution}[/dim]"
             )
 
         console.print("[bold blue]Beacon TV Downloader[/bold blue]")
@@ -612,6 +612,119 @@ def clear_history(
 
     except Exception as e:
         console.print(f"[red]Error: {e}[/red]")
+        raise typer.Exit(code=1)
+
+
+@app.command("rename")
+def rename_files(
+    directory: Path = typer.Argument(
+        Path("."),
+        help="Directory containing files to rename",
+    ),
+    dry_run: bool = typer.Option(
+        True,
+        "--dry-run/--execute",
+        help="Show what would be renamed without making changes",
+    ),
+    pattern: str = typer.Option(
+        "*.mkv",
+        "--pattern",
+        help="Glob pattern for files to consider",
+    ),
+) -> None:
+    """
+    Rename existing files to current naming schema.
+
+    Finds files that match the old naming schema (with release group suffix)
+    and renames them to the new schema (without release group).
+
+    Use --execute to actually perform renames (default is --dry-run).
+
+    Examples:
+        beacon-dl rename                    # Dry-run in current directory
+        beacon-dl rename ./downloads        # Dry-run in downloads folder
+        beacon-dl rename --execute          # Actually rename files
+        beacon-dl rename --pattern "*.mp4"  # Only rename mp4 files
+    """
+    import re
+
+    try:
+        console.print("[bold blue]File Renaming Tool[/bold blue]\n")
+
+        if dry_run:
+            console.print("[yellow]DRY RUN - no files will be renamed[/yellow]")
+            console.print("[dim]Use --execute to actually rename files[/dim]\n")
+
+        # Pattern to match release group suffix: "-GroupName.ext"
+        # Matches alphanumeric release group names like Pawsty, RARBG, etc.
+        release_group_pattern = re.compile(r"^(.+)-([A-Za-z0-9]+)\.(\w+)$")
+
+        # Find files matching glob pattern
+        files = list(directory.glob(pattern))
+        if not files:
+            console.print(f"[yellow]No files found matching '{pattern}' in {directory}[/yellow]")
+            return
+
+        history = DownloadHistory()
+        renamed_count = 0
+        skipped_count = 0
+
+        for file_path in sorted(files):
+            filename = file_path.name
+            match = release_group_pattern.match(filename)
+
+            if not match:
+                # File doesn't have release group pattern
+                continue
+
+            base_name = match.group(1)
+            release_group = match.group(2)
+            extension = match.group(3)
+
+            # New filename without release group
+            new_filename = f"{base_name}.{extension}"
+            new_path = file_path.parent / new_filename
+
+            # Check if target already exists
+            if new_path.exists():
+                console.print(f"[yellow]SKIP[/yellow] {filename}")
+                console.print(f"  [dim]Target already exists: {new_filename}[/dim]")
+                skipped_count += 1
+                continue
+
+            if dry_run:
+                console.print(f"[cyan]WOULD RENAME[/cyan] {filename}")
+                console.print(f"  [dim]→ {new_filename}[/dim]")
+                console.print(f"  [dim]  (removing release group: {release_group})[/dim]")
+            else:
+                # Actually rename the file
+                file_path.rename(new_path)
+                console.print(f"[green]RENAMED[/green] {filename}")
+                console.print(f"  [dim]→ {new_filename}[/dim]")
+
+                # Update history database if this file is tracked
+                record = history.get_download_by_filename(filename)
+                if record:
+                    history.update_filename(record.content_id, new_filename)
+                    console.print("  [dim]Updated history record[/dim]")
+
+            renamed_count += 1
+
+        console.print("\n[bold]Summary:[/bold]")
+        if dry_run:
+            console.print(f"  [cyan]Would rename: {renamed_count}[/cyan]")
+        else:
+            console.print(f"  [green]Renamed: {renamed_count}[/green]")
+        if skipped_count > 0:
+            console.print(f"  [yellow]Skipped: {skipped_count}[/yellow]")
+
+        if dry_run and renamed_count > 0:
+            console.print("\n[dim]Run with --execute to apply changes[/dim]")
+
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        if settings.debug:
+            console.print_exception()
         raise typer.Exit(code=1)
 
 

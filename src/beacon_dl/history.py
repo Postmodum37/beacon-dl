@@ -373,3 +373,23 @@ class DownloadHistory:
             )
             conn.commit()
             return cursor.rowcount > 0
+
+    def update_filename(self, content_id: str, new_filename: str) -> bool:
+        """Update the filename for a download record.
+
+        Used when renaming files to match a new naming schema.
+
+        Args:
+            content_id: BeaconTV content ID
+            new_filename: New filename (without path)
+
+        Returns:
+            True if record was updated, False if not found
+        """
+        with closing(_get_connection(self.db_path)) as conn:
+            cursor = conn.execute(
+                "UPDATE downloads SET filename = ? WHERE content_id = ?",
+                (new_filename, content_id),
+            )
+            conn.commit()
+            return cursor.rowcount > 0

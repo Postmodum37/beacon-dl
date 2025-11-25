@@ -360,7 +360,7 @@ class TestDownloadFlow:
         # Create a file that matches the expected output pattern
         expected_file = (
             tmp_path
-            / "Campaign.4.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+            / "Campaign.4.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264.mkv"
         )
         expected_file.touch()
 

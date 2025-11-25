@@ -161,13 +161,6 @@ class TestGraphQLClientSecurity:
 class TestConfigValidationSecurity:
     """Test configuration validation prevents injection."""
 
-    def test_release_group_rejects_shell_metacharacters(self):
-        """Test that release_group validates input."""
-        from src.beacon_dl.config import Settings
-
-        with pytest.raises(ValueError, match="Invalid value"):
-            Settings(release_group="; rm -rf /")
-
     def test_container_format_only_allows_whitelisted_formats(self):
         """Test that container_format uses whitelist."""
         from src.beacon_dl.config import Settings

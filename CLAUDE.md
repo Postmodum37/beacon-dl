@@ -87,12 +87,12 @@ BEACON_USERNAME=user@example.com BEACON_PASSWORD=yourpassword beacon-dl
 ./beacon_dl.sh https://beacon.tv/content/c4-e006-knives-and-thorns
 
 # With environment variables
-RELEASE_GROUP="MyGroup" PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
+PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
 ```
 
 **Output examples:**
-- Episodic: `Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
-- One-shot: `Critical.Role.Jester.and.Fjords.Wedding.Live.from.Radio.City.Music.Hall.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
+- Episodic: `Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264.mkv`
+- One-shot: `Critical.Role.Jester.and.Fjords.Wedding.Live.from.Radio.City.Music.Hall.1080p.WEB-DL.AAC2.0.H.264.mkv`
 
 ## Configuration
 
@@ -104,7 +104,6 @@ Both implementations support the same configuration via environment variables or
 - `BROWSER_PROFILE`: Browser for cookies (fallback: firefox, chrome, etc.)
 
 **Download Settings:**
-- `RELEASE_GROUP`: Release group name (default: Pawsty)
 - `SOURCE_TYPE`: Source type (default: WEB-DL)
 - `CONTAINER_FORMAT`: Output format (default: mkv)
 - `PREFERRED_RESOLUTION`: Download quality (default: 1080p)
@@ -295,7 +294,7 @@ This feature is particularly useful for:
    - Sets strict error handling with `set -euo pipefail`
    - Environment-based configuration with sensible defaults
    - Input validation helper function to prevent injection attacks
-   - Validates all user-controllable variables (RELEASE_GROUP, CONTAINER_FORMAT, etc.)
+   - Validates all user-controllable variables (CONTAINER_FORMAT, etc.)
    - Creates secure temporary directory using `mktemp`
 2. **Helper Functions** (lines 65-160):
    - Enhanced filename sanitization with length limits and hidden file prevention
@@ -324,7 +323,7 @@ This feature is particularly useful for:
    - **Non-episodic**: Any title not matching above patterns
    - Uses dynamically detected show name instead of hardcoded "Critical.Role"
    - Fixed regex escaping for proper show name matching
-   - Output: `{ShowName}.S{season}E{episode}.{Title}.{specs}-{ReleaseGroup}.{format}`
+   - Output: `{ShowName}.S{season}E{episode}.{Title}.{specs}.{format}`
 9. **Download Skip Check** (lines 349-358): Checks if output file already exists
 10. **Video Download** (lines 361-371): Downloads video to secure temp directory at configured resolution using browser cookies
 11. **Subtitle Download** (lines 373-384): Downloads all available subtitle tracks as VTT files to secure temp directory
@@ -339,12 +338,12 @@ This feature is particularly useful for:
 ### Output Format
 
 **Naming Convention** (all components dynamically extracted or configurable):
-- Episodic: `{ShowName}.S{season}E{episode}.{Title}.{resolution}.{source}.{audio}{channels}.{video}-{group}.{format}`
-- One-shot/special: `{ShowName}.{Title}.{resolution}.{source}.{audio}{channels}.{video}-{group}.{format}`
+- Episodic: `{ShowName}.S{season}E{episode}.{Title}.{resolution}.{source}.{audio}{channels}.{video}.{format}`
+- One-shot/special: `{ShowName}.{Title}.{resolution}.{source}.{audio}{channels}.{video}.{format}`
 
 **Examples** (with defaults):
-- `Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
-- `Critical.Role.Jester.and.Fjords.Wedding.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
+- `Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264.mkv`
+- `Critical.Role.Jester.and.Fjords.Wedding.1080p.WEB-DL.AAC2.0.H.264.mkv`
 
 **Dynamic Components**:
 - `{ShowName}`: Extracted from metadata (`series` → `uploader` → "Critical.Role")
@@ -353,7 +352,6 @@ This feature is particularly useful for:
 - `{audio}`: Detected codec (AAC, Opus, Vorbis, AC3, EAC3) or `DEFAULT_AUDIO_CODEC`
 - `{channels}`: From metadata or `DEFAULT_AUDIO_CHANNELS`
 - `{video}`: Detected codec (H.264, H.265, VP9) or `DEFAULT_VIDEO_CODEC`
-- `{group}`: Configurable via `RELEASE_GROUP` (default: Pawsty)
 - `{format}`: Configurable via `CONTAINER_FORMAT` (default: mkv)
 
 **Video Specs** (for BeaconTV):
@@ -538,7 +536,6 @@ RUN playwright install-deps chromium
 ENV BEACON_USERNAME=""
 ENV BEACON_PASSWORD=""
 ENV PREFERRED_RESOLUTION="1080p"
-ENV RELEASE_GROUP="Pawsty"
 
 # Run command
 CMD ["beacon-dl"]
@@ -554,7 +551,6 @@ services:
       - BEACON_USERNAME=${BEACON_USERNAME}
       - BEACON_PASSWORD=${BEACON_PASSWORD}
       - PREFERRED_RESOLUTION=1080p
-      - RELEASE_GROUP=Pawsty
     volumes:
       - ./downloads:/app
     command: beacon-dl

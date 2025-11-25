@@ -196,7 +196,6 @@ class TestSettings:
         """Test default configuration values."""
         settings = Settings()
 
-        assert settings.release_group == "Pawsty"
         assert settings.preferred_resolution == "1080p"
         assert settings.source_type == "WEB-DL"
         assert settings.container_format == "mkv"
@@ -204,11 +203,8 @@ class TestSettings:
 
     def test_custom_settings(self):
         """Test custom configuration values."""
-        settings = Settings(
-            release_group="CustomGroup", preferred_resolution="720p", debug=True
-        )
+        settings = Settings(preferred_resolution="720p", debug=True)
 
-        assert settings.release_group == "CustomGroup"
         assert settings.preferred_resolution == "720p"
         assert settings.debug is True
 

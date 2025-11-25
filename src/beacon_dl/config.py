@@ -18,16 +18,13 @@ class Settings(BaseSettings):
         secrets_dir="/run/secrets",  # Docker secrets support
     )
 
-    release_group: str = Field(default="Pawsty", validation_alias="RELEASE_GROUP")
     preferred_resolution: str = Field(
         default="1080p", validation_alias="PREFERRED_RESOLUTION"
     )
     source_type: str = Field(default="WEB-DL", validation_alias="SOURCE_TYPE")
     container_format: str = Field(default="mkv", validation_alias="CONTAINER_FORMAT")
 
-    @field_validator(
-        "release_group", "source_type", "default_audio_codec", "default_video_codec"
-    )
+    @field_validator("source_type", "default_audio_codec", "default_video_codec")
     @classmethod
     def validate_alphanum_with_symbols(cls, v: str) -> str:
         """Validate alphanumeric fields with common symbols.

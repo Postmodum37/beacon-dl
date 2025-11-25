@@ -515,3 +515,41 @@ class TestVerifyResult:
         assert VerifyResult.HASH_MISMATCH.value == "hash_mismatch"
         assert VerifyResult.FILE_MISSING.value == "file_missing"
         assert VerifyResult.NOT_IN_HISTORY.value == "not_in_history"
+
+
+class TestUpdateFilename:
+    """Tests for update_filename method."""
+
+    def test_update_filename_success(self, tmp_path):
+        """Test updating filename for existing record."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        # Record a download
+        history.record_download(
+            content_id="abc123",
+            slug="test-slug",
+            title="Test Title",
+            filename="old_filename.mkv",
+            file_size=1000,
+            sha256="abc",
+        )
+
+        # Update filename
+        result = history.update_filename("abc123", "new_filename.mkv")
+
+        assert result is True
+
+        # Verify the filename was updated
+        record = history.get_download("abc123")
+        assert record.filename == "new_filename.mkv"
+
+    def test_update_filename_not_found(self, tmp_path):
+        """Test updating filename for non-existent record."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        # Try to update non-existent record
+        result = history.update_filename("nonexistent", "new_filename.mkv")
+
+        assert result is False

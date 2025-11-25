@@ -276,7 +276,7 @@ class BeaconDownloader:
             return (
                 f"{show_name}.S{season}E{episode}.{episode_title}."
                 f"{resolution}.{settings.source_type}.{audio_codec}{audio_channels}."
-                f"{video_codec}-{settings.release_group}"
+                f"{video_codec}"
             )
         else:
             # Non-episodic format
@@ -287,12 +287,12 @@ class BeaconDownloader:
             if re.match(rf"^{escaped_show}\.", title):
                 return (
                     f"{title}.{resolution}.{settings.source_type}."
-                    f"{audio_codec}{audio_channels}.{video_codec}-{settings.release_group}"
+                    f"{audio_codec}{audio_channels}.{video_codec}"
                 )
             else:
                 return (
                     f"{show_name}.{title}.{resolution}.{settings.source_type}."
-                    f"{audio_codec}{audio_channels}.{video_codec}-{settings.release_group}"
+                    f"{audio_codec}{audio_channels}.{video_codec}"
                 )
 
     def _extract_episode_title(self, full_title: str) -> str:

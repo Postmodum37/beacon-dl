@@ -113,7 +113,7 @@ fixable = ["ALL"]
 unfixable = []
 
 [tool.ruff.lint.per-file-ignores]
-"src/beacon_dl/main.py" = ["B904"]  # typer.Exit() intentionally doesn't chain exceptions
+"src/beacon_dl/main.py" = ["B904", "B008"]  # typer.Exit() and typer.Argument() are intentional patterns
 
 [tool.ruff.lint.isort]
 known-first-party = ["beacon_dl"]

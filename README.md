@@ -133,6 +133,24 @@ beacon-dl clear-history
 beacon-dl clear-history --force
 ```
 
+### Rename Files
+
+Rename existing files to match the current naming schema (useful after updates):
+
+```bash
+# Dry-run: show what would be renamed
+beacon-dl rename
+
+# Rename files in a specific directory
+beacon-dl rename ./downloads
+
+# Actually rename files
+beacon-dl rename --execute
+
+# Only rename mp4 files
+beacon-dl rename --pattern "*.mp4" --execute
+```
+
 ## Authentication
 
 ### Username/Password (Recommended)
@@ -165,7 +183,6 @@ All settings can be configured via environment variables or a `.env` file.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `RELEASE_GROUP` | Pawsty | Release group name in filename |
 | `PREFERRED_RESOLUTION` | 1080p | Download quality (720p, 1080p, 2160p) |
 | `SOURCE_TYPE` | WEB-DL | Source type in filename |
 | `CONTAINER_FORMAT` | mkv | Output format (mkv, mp4) |
@@ -183,16 +200,12 @@ All settings can be configured via environment variables or a `.env` file.
 ```bash
 BEACON_USERNAME=user@example.com
 BEACON_PASSWORD=yourpassword
-RELEASE_GROUP=MyGroup
 PREFERRED_RESOLUTION=1080p
 ```
 
-### Custom Release Examples
+### Custom Settings Examples
 
 ```bash
-# Custom release group
-RELEASE_GROUP="MyGroup" beacon-dl
-
 # 720p quality
 PREFERRED_RESOLUTION="720p" beacon-dl
 
@@ -200,19 +213,19 @@ PREFERRED_RESOLUTION="720p" beacon-dl
 CONTAINER_FORMAT="mp4" beacon-dl
 
 # Combined
-RELEASE_GROUP="MyGroup" PREFERRED_RESOLUTION="720p" beacon-dl
+PREFERRED_RESOLUTION="720p" CONTAINER_FORMAT="mp4" beacon-dl
 ```
 
 ## Output Format
 
 **Episodic content:**
 ```
-Critical.Role.S04E07.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
+Critical.Role.S04E07.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264.mkv
 ```
 
 **One-shots/specials:**
 ```
-Critical.Role.Jester.and.Fjords.Wedding.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
+Critical.Role.Jester.and.Fjords.Wedding.1080p.WEB-DL.AAC2.0.H.264.mkv
 ```
 
 ## Docker

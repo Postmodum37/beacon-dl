@@ -240,7 +240,6 @@ class TestConstants:
         """Test constants can be imported."""
         from src.beacon_dl.constants import (
             DEFAULT_CONTAINER_FORMAT,
-            DEFAULT_RELEASE_GROUP,
             DEFAULT_RESOLUTION,
             KNOWN_COLLECTIONS,
             PLAYWRIGHT_BANNER_TIMEOUT,
@@ -254,7 +253,6 @@ class TestConstants:
         )
 
         # Verify some key values
-        assert DEFAULT_RELEASE_GROUP == "Pawsty"
         assert DEFAULT_RESOLUTION == "1080p"
         assert DEFAULT_CONTAINER_FORMAT == "mkv"
         assert "campaign-4" in KNOWN_COLLECTIONS
