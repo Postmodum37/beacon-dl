@@ -3,9 +3,9 @@
 Tests GraphQL queries, error handling, and data parsing.
 """
 
-import pytest
-from pathlib import Path
 import httpx
+import pytest
+
 from src.beacon_dl.graphql import BeaconGraphQL
 
 
@@ -122,7 +122,9 @@ class TestBeaconGraphQLClient:
 class TestListSeries:
     """Test list_collections() functionality."""
 
-    def test_list_series_success(self, httpx_mock, graphql_client, mock_series_response):
+    def test_list_series_success(
+        self, httpx_mock, graphql_client, mock_series_response
+    ):
         """Test successful series listing."""
         httpx_mock.add_response(
             method="POST",
@@ -174,7 +176,9 @@ class TestListSeries:
 class TestGetLatestEpisode:
     """Test get_latest_episode() functionality."""
 
-    def test_get_latest_episode_success(self, httpx_mock, graphql_client, mock_episode_response):
+    def test_get_latest_episode_success(
+        self, httpx_mock, graphql_client, mock_episode_response
+    ):
         """Test successful latest episode retrieval."""
         # campaign-4 is pre-cached, so only ONE API call is made (for episodes)
         httpx_mock.add_response(
@@ -197,7 +201,13 @@ class TestGetLatestEpisode:
         httpx_mock.add_response(
             method="POST",
             url="https://beacon.tv/api/graphql",
-            json={"data": {"Collections": {"docs": [{"id": "col-1", "name": "Test", "slug": "test"}]}}},
+            json={
+                "data": {
+                    "Collections": {
+                        "docs": [{"id": "col-1", "name": "Test", "slug": "test"}]
+                    }
+                }
+            },
         )
         httpx_mock.add_response(
             method="POST",
@@ -225,7 +235,9 @@ class TestGetLatestEpisode:
 class TestGetContentBySlug:
     """Test get_content_by_slug() functionality."""
 
-    def test_get_content_by_slug_success(self, httpx_mock, graphql_client, mock_episode_response):
+    def test_get_content_by_slug_success(
+        self, httpx_mock, graphql_client, mock_episode_response
+    ):
         """Test successful content retrieval by slug."""
         httpx_mock.add_response(
             method="POST",
@@ -267,7 +279,15 @@ class TestGetSeriesEpisodes:
         httpx_mock.add_response(
             method="POST",
             url="https://beacon.tv/api/graphql",
-            json={"data": {"Collections": {"docs": [{"id": "col-series-ep", "name": "Test", "slug": unique_slug}]}}},
+            json={
+                "data": {
+                    "Collections": {
+                        "docs": [
+                            {"id": "col-series-ep", "name": "Test", "slug": unique_slug}
+                        ]
+                    }
+                }
+            },
         )
         httpx_mock.add_response(
             method="POST",
@@ -319,7 +339,13 @@ class TestGetSeriesEpisodes:
         httpx_mock.add_response(
             method="POST",
             url="https://beacon.tv/api/graphql",
-            json={"data": {"Collections": {"docs": [{"id": "col-1", "name": "Test", "slug": unique_slug}]}}},
+            json={
+                "data": {
+                    "Collections": {
+                        "docs": [{"id": "col-1", "name": "Test", "slug": unique_slug}]
+                    }
+                }
+            },
         )
         httpx_mock.add_response(
             method="POST",
@@ -365,7 +391,9 @@ class TestGetCollectionInfo:
 class TestCollectionCache:
     """Test collection ID caching functionality."""
 
-    def test_collection_cache_avoids_redundant_queries(self, httpx_mock, graphql_client):
+    def test_collection_cache_avoids_redundant_queries(
+        self, httpx_mock, graphql_client
+    ):
         """Test that collection IDs are cached to avoid redundant queries."""
         # Use a unique slug to avoid cache interference from other tests
         unique_slug = "unique-test-slug-for-cache"
@@ -377,7 +405,15 @@ class TestCollectionCache:
         httpx_mock.add_response(
             method="POST",
             url="https://beacon.tv/api/graphql",
-            json={"data": {"Collections": {"docs": [{"id": "cached-id", "name": "Test", "slug": unique_slug}]}}},
+            json={
+                "data": {
+                    "Collections": {
+                        "docs": [
+                            {"id": "cached-id", "name": "Test", "slug": unique_slug}
+                        ]
+                    }
+                }
+            },
         )
 
         # First call should query API

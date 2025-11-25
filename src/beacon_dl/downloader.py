@@ -8,16 +8,14 @@ direct download method.
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
-from typing import Optional
 
 import httpx
 from rich.console import Console
 from rich.progress import (
-    Progress,
     BarColumn,
     DownloadColumn,
+    Progress,
     TextColumn,
     TimeRemainingColumn,
     TransferSpeedColumn,
@@ -25,7 +23,8 @@ from rich.progress import (
 
 from .config import settings
 from .content import VideoContent, VideoSource, get_video_content
-from .history import DownloadHistory, VerifyResult
+from .exceptions import ContentNotFoundError, DownloadError, MergeError, ValidationError
+from .history import DownloadHistory
 from .utils import sanitize_filename
 
 console = Console()
@@ -36,7 +35,14 @@ DEFAULT_TRANSPORT = httpx.HTTPTransport(retries=3)
 
 
 class BeaconDownloader:
-    """Downloads videos from beacon.tv using direct HTTP requests."""
+    """Downloads videos from beacon.tv using direct HTTP requests.
+
+    This class supports the context manager protocol for proper resource cleanup.
+
+    Example:
+        >>> with BeaconDownloader(cookie_file) as downloader:
+        ...     downloader.download_slug("c4-e007-on-the-scent")
+    """
 
     def __init__(self, cookie_file: Path):
         """Initialize downloader.
@@ -52,18 +58,34 @@ class BeaconDownloader:
             follow_redirects=True,
         )
 
+    def __enter__(self) -> "BeaconDownloader":
+        """Enter context manager."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager, closing HTTP client."""
+        self.close()
+
+    def close(self) -> None:
+        """Close the HTTP client and release resources."""
+        if self.client:
+            self.client.close()
+
     def download_url(self, url: str) -> None:
         """Download video from a beacon.tv URL.
 
         Args:
             url: Full beacon.tv content URL (e.g., https://beacon.tv/content/c4-e007-on-the-scent)
+
+        Raises:
+            ValidationError: If URL format is invalid
         """
         # Extract slug from URL
         slug = self._extract_slug(url)
         if not slug:
-            console.print(f"[red]❌ Invalid URL: {url}[/red]")
-            console.print("[yellow]Expected format: https://beacon.tv/content/<slug>[/yellow]")
-            sys.exit(1)
+            raise ValidationError(
+                f"Invalid URL: {url}. Expected format: https://beacon.tv/content/<slug>"
+            )
 
         self.download_slug(slug)
 
@@ -72,14 +94,18 @@ class BeaconDownloader:
 
         Args:
             slug: Content slug (e.g., "c4-e007-on-the-scent")
+
+        Raises:
+            ContentNotFoundError: If content cannot be fetched
+            DownloadError: If download fails
+            MergeError: If ffmpeg merge fails
         """
         console.print(f"[blue]==> Fetching video metadata for {slug}...[/blue]")
 
         # Get video content
         content = get_video_content(slug, self.cookie_file)
         if not content:
-            console.print("[red]❌ Failed to get video content[/red]")
-            sys.exit(1)
+            raise ContentNotFoundError(f"Failed to get video content for slug: {slug}")
 
         # Initialize download history
         history = DownloadHistory()
@@ -89,16 +115,24 @@ class BeaconDownloader:
         console.print(f"[green]Title:[/green] {content.metadata.title}")
         if content.metadata.collection_name:
             console.print(f"[green]Series:[/green] {content.metadata.collection_name}")
-        console.print(f"[green]Sources:[/green] {len(content.sources)} resolutions available")
-        console.print(f"[green]Subtitles:[/green] {len(content.subtitles)} languages available")
+        console.print(
+            f"[green]Sources:[/green] {len(content.sources)} resolutions available"
+        )
+        console.print(
+            f"[green]Subtitles:[/green] {len(content.subtitles)} languages available"
+        )
 
         # Select best source for preferred resolution
         source = self._select_source(content.sources)
         if not source:
-            console.print("[red]❌ No suitable video source found[/red]")
-            sys.exit(1)
+            raise ContentNotFoundError(
+                f"No suitable video source found for slug: {slug}. "
+                f"Available sources: {len(content.sources)}"
+            )
 
-        console.print(f"[green]Selected:[/green] {source.label} ({source.width}x{source.height})")
+        console.print(
+            f"[green]Selected:[/green] {source.label} ({source.width}x{source.height})"
+        )
 
         # Generate output filename
         output_name = self._generate_filename(content, source)
@@ -113,16 +147,24 @@ class BeaconDownloader:
                 # Validate file size
                 actual_size = output_file.stat().st_size
                 if record.file_size and actual_size == record.file_size:
-                    console.print(f"[green]✓ Already downloaded (verified by content ID): {output_file}[/green]")
+                    console.print(
+                        f"[green]✓ Already downloaded (verified by content ID): {output_file}[/green]"
+                    )
                     return
                 else:
-                    console.print(f"[yellow]⚠️  File size mismatch (expected {record.file_size}, got {actual_size}), re-downloading...[/yellow]")
+                    console.print(
+                        f"[yellow]⚠️  File size mismatch (expected {record.file_size}, got {actual_size}), re-downloading...[/yellow]"
+                    )
             elif record:
-                console.print(f"[yellow]⚠️  File missing from disk, re-downloading...[/yellow]")
+                console.print(
+                    "[yellow]⚠️  File missing from disk, re-downloading...[/yellow]"
+                )
         # Fallback to filename check (for files downloaded before history was added)
         elif output_file.exists():
             console.print(f"[green]✓ Video already exists: {output_file}[/green]")
-            console.print("[dim]Tip: Run 'beacon-dl verify' to add existing files to history[/dim]")
+            console.print(
+                "[dim]Tip: Run 'beacon-dl verify' to add existing files to history[/dim]"
+            )
             return
 
         # Create temp directory
@@ -136,7 +178,9 @@ class BeaconDownloader:
             self._download_file(source.url, temp_video)
 
             # Download subtitles
-            console.print(f"\n[blue]==> Downloading {len(content.subtitles)} subtitle tracks...[/blue]")
+            console.print(
+                f"\n[blue]==> Downloading {len(content.subtitles)} subtitle tracks...[/blue]"
+            )
             subtitle_files = []
             for sub in content.subtitles:
                 sub_file = temp_dir / f"subs.{sub.language}.{sub.label}.vtt"
@@ -170,13 +214,13 @@ class BeaconDownloader:
             if temp_dir.exists():
                 shutil.rmtree(temp_dir)
 
-    def _extract_slug(self, url: str) -> Optional[str]:
+    def _extract_slug(self, url: str) -> str | None:
         """Extract content slug from URL."""
         # Match beacon.tv/content/<slug>
         match = re.search(r"beacon\.tv/content/([a-zA-Z0-9_-]+)", url)
         return match.group(1) if match else None
 
-    def _select_source(self, sources: list[VideoSource]) -> Optional[VideoSource]:
+    def _select_source(self, sources: list[VideoSource]) -> VideoSource | None:
         """Select the best video source for preferred resolution."""
         if not sources:
             return None
@@ -189,7 +233,9 @@ class BeaconDownloader:
         for source in sources:
             if source.height == preferred:
                 return source
-            if source.height < preferred and (best is None or source.height > best.height):
+            if source.height < preferred and (
+                best is None or source.height > best.height
+            ):
                 best = source
 
         # If no lower resolution found, return highest available
@@ -295,7 +341,9 @@ class BeaconDownloader:
 
                 if show_progress and total_size > 0:
                     with Progress(
-                        TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
+                        TextColumn(
+                            "[bold blue]{task.fields[filename]}", justify="right"
+                        ),
                         BarColumn(bar_width=None),
                         "[progress.percentage]{task.percentage:>3.1f}%",
                         "•",
@@ -307,24 +355,30 @@ class BeaconDownloader:
                         console=console,
                         transient=True,
                     ) as progress:
-                        filename = dest.name[:30] + "..." if len(dest.name) > 30 else dest.name
-                        task = progress.add_task("download", filename=filename, total=total_size)
+                        filename = (
+                            dest.name[:30] + "..." if len(dest.name) > 30 else dest.name
+                        )
+                        task = progress.add_task(
+                            "download", filename=filename, total=total_size
+                        )
 
                         with open(dest, "wb") as f:
                             for chunk in response.iter_bytes(chunk_size=65536):
                                 f.write(chunk)
-                                progress.update(task, completed=response.num_bytes_downloaded)
+                                progress.update(
+                                    task, completed=response.num_bytes_downloaded
+                                )
                 else:
                     with open(dest, "wb") as f:
                         for chunk in response.iter_bytes(chunk_size=65536):
                             f.write(chunk)
 
         except httpx.HTTPStatusError as e:
-            console.print(f"[red]❌ Download failed (HTTP {e.response.status_code}): {e}[/red]")
-            raise
+            raise DownloadError(
+                f"Download failed (HTTP {e.response.status_code}): {url}"
+            ) from e
         except httpx.RequestError as e:
-            console.print(f"[red]❌ Download failed: {e}[/red]")
-            raise
+            raise DownloadError(f"Download failed: {e}") from e
 
     def _merge_files(
         self,
@@ -365,5 +419,9 @@ class BeaconDownloader:
         try:
             subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
-            console.print(f"[red]❌ FFmpeg merge failed: {e}[/red]")
-            raise
+            raise MergeError(f"FFmpeg merge failed: {e}") from e
+        except FileNotFoundError as e:
+            raise MergeError(
+                "FFmpeg not found. Please install ffmpeg: brew install ffmpeg (macOS) "
+                "or apt install ffmpeg (Linux)"
+            ) from e

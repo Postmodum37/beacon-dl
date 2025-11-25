@@ -1,10 +1,14 @@
 """Tests for authentication module."""
 
-import pytest
-from pathlib import Path
 from datetime import datetime
-from unittest.mock import patch, MagicMock
-from src.beacon_dl.auth import validate_cookies, get_auth_args, are_cookies_valid_with_buffer
+from pathlib import Path
+from unittest.mock import patch
+
+from src.beacon_dl.auth import (
+    are_cookies_valid_with_buffer,
+    get_auth_args,
+    validate_cookies,
+)
 from src.beacon_dl.config import Settings
 
 
@@ -130,13 +134,13 @@ class TestAuthArgs:
 
     def test_playwright_auth_priority(self):
         """Test Playwright auth is prioritized when credentials provided."""
-        with patch('src.beacon_dl.config.settings') as mock_settings:
+        with patch("src.beacon_dl.config.settings") as mock_settings:
             mock_settings.beacon_username = "user@example.com"
             mock_settings.beacon_password = "password123"
             mock_settings.browser_profile = None
             mock_settings.debug = False
 
-            with patch('src.beacon_dl.auth.login_and_get_cookies') as mock_login:
+            with patch("src.beacon_dl.auth.login_and_get_cookies") as mock_login:
                 mock_login.return_value = Path("test_cookies.txt")
 
                 args = get_auth_args()
@@ -146,7 +150,7 @@ class TestAuthArgs:
 
     def test_browser_profile_fallback(self):
         """Test browser profile is used when no credentials provided."""
-        with patch('src.beacon_dl.auth.settings') as mock_settings:
+        with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
             mock_settings.browser_profile = "firefox:default"
@@ -157,12 +161,12 @@ class TestAuthArgs:
 
     def test_auto_detect_fallback(self):
         """Test auto-detection fallback when no auth configured."""
-        with patch('src.beacon_dl.auth.settings') as mock_settings:
+        with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
             mock_settings.browser_profile = None
 
-            with patch('src.beacon_dl.auth.detect_browser_profile') as mock_detect:
+            with patch("src.beacon_dl.auth.detect_browser_profile") as mock_detect:
                 mock_detect.return_value = "chrome:Default"
 
                 args = get_auth_args()
@@ -172,12 +176,12 @@ class TestAuthArgs:
 
     def test_no_auth_available(self):
         """Test empty args returned when no auth method available."""
-        with patch('src.beacon_dl.auth.settings') as mock_settings:
+        with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
             mock_settings.browser_profile = None
 
-            with patch('src.beacon_dl.auth.detect_browser_profile') as mock_detect:
+            with patch("src.beacon_dl.auth.detect_browser_profile") as mock_detect:
                 mock_detect.return_value = None
 
                 args = get_auth_args()
@@ -201,9 +205,7 @@ class TestSettings:
     def test_custom_settings(self):
         """Test custom configuration values."""
         settings = Settings(
-            release_group="CustomGroup",
-            preferred_resolution="720p",
-            debug=True
+            release_group="CustomGroup", preferred_resolution="720p", debug=True
         )
 
         assert settings.release_group == "CustomGroup"
@@ -218,11 +220,11 @@ class TestGetCookieFile:
         """Test cookie file is created when credentials provided."""
         from src.beacon_dl.auth import get_cookie_file
 
-        with patch('src.beacon_dl.auth.settings') as mock_settings:
+        with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = "user@example.com"
             mock_settings.beacon_password = "password123"
 
-            with patch('src.beacon_dl.auth.login_and_get_cookies') as mock_login:
+            with patch("src.beacon_dl.auth.login_and_get_cookies") as mock_login:
                 mock_cookie_file = tmp_path / "cookies.txt"
                 mock_login.return_value = mock_cookie_file
 
@@ -242,7 +244,7 @@ class TestGetCookieFile:
         # Change working directory to tmp_path
         monkeypatch.chdir(tmp_path)
 
-        with patch('src.beacon_dl.auth.settings') as mock_settings:
+        with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
 
@@ -257,7 +259,7 @@ class TestGetCookieFile:
         # Change to tmp_path where no cookie file exists
         monkeypatch.chdir(tmp_path)
 
-        with patch('src.beacon_dl.auth.settings') as mock_settings:
+        with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
 
@@ -346,6 +348,7 @@ class TestWriteNetscapeCookies:
         """Test cookie file has secure permissions."""
         import os
         import stat
+
         from src.beacon_dl.auth import _write_netscape_cookies
 
         cookies = [
@@ -385,6 +388,7 @@ class TestCookieValidationEdgeCases:
     def test_validate_cookies_all_expired(self, tmp_path):
         """Test validation when all cookies are expired."""
         import time
+
         past_timestamp = int(time.time()) - 3600  # 1 hour ago
 
         cookie_file = tmp_path / "cookies.txt"

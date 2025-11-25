@@ -4,8 +4,9 @@ Tests GraphQL injection prevention and input validation.
 """
 
 import pytest
-from src.beacon_dl.graphql import validate_slug, BeaconGraphQL
-from pathlib import Path
+
+from src.beacon_dl.exceptions import ValidationError
+from src.beacon_dl.graphql import BeaconGraphQL, validate_slug
 
 
 class TestGraphQLInjectionPrevention:
@@ -37,7 +38,7 @@ class TestGraphQLInjectionPrevention:
         ]
 
         for slug in malicious_slugs:
-            with pytest.raises(ValueError, match="Invalid.*slug"):
+            with pytest.raises(ValidationError, match="Invalid.*slug"):
                 validate_slug(slug)
 
     def test_validate_slug_rejects_shell_metacharacters(self):
@@ -54,7 +55,7 @@ class TestGraphQLInjectionPrevention:
         ]
 
         for slug in malicious_slugs:
-            with pytest.raises(ValueError, match="Invalid"):
+            with pytest.raises(ValidationError, match="Invalid"):
                 validate_slug(slug)
 
     def test_validate_slug_rejects_path_traversal(self):
@@ -67,7 +68,7 @@ class TestGraphQLInjectionPrevention:
         ]
 
         for slug in malicious_slugs:
-            with pytest.raises(ValueError, match="Invalid"):
+            with pytest.raises(ValidationError, match="Invalid"):
                 validate_slug(slug)
 
     def test_validate_slug_rejects_special_chars(self):
@@ -97,24 +98,24 @@ class TestGraphQLInjectionPrevention:
         ]
 
         for slug in malicious_slugs:
-            with pytest.raises(ValueError, match="Invalid"):
+            with pytest.raises(ValidationError, match="Invalid"):
                 validate_slug(slug, "test_field")
 
     def test_validate_slug_enforces_max_length(self):
         """Test that excessively long slugs are rejected (DoS protection)."""
         long_slug = "a" * 201  # Max is 200
 
-        with pytest.raises(ValueError, match="too long"):
+        with pytest.raises(ValidationError, match="too long"):
             validate_slug(long_slug)
 
     def test_validate_slug_rejects_empty_string(self):
         """Test that empty slugs are rejected."""
-        with pytest.raises(ValueError, match="cannot be empty"):
+        with pytest.raises(ValidationError, match="cannot be empty"):
             validate_slug("")
 
     def test_validate_slug_custom_field_name_in_error(self):
         """Test that custom field names appear in error messages."""
-        with pytest.raises(ValueError, match="custom_field"):
+        with pytest.raises(ValidationError, match="custom_field"):
             validate_slug("invalid@slug", "custom_field")
 
 
@@ -128,8 +129,8 @@ class TestGraphQLClientSecurity:
 
         client = BeaconGraphQL(cookie_file)
 
-        # Should raise ValueError for invalid slug
-        with pytest.raises(ValueError, match="Invalid"):
+        # Should raise ValidationError for invalid slug
+        with pytest.raises(ValidationError, match="Invalid"):
             client._get_collection_id('test"; query Malicious')
 
     def test_get_content_by_slug_validates_slug(self, tmp_path):
@@ -139,8 +140,8 @@ class TestGraphQLClientSecurity:
 
         client = BeaconGraphQL(cookie_file)
 
-        # Should raise ValueError for invalid slug
-        with pytest.raises(ValueError, match="Invalid"):
+        # Should raise ValidationError for invalid slug
+        with pytest.raises(ValidationError, match="Invalid"):
             client.get_content_by_slug('test"; DROP TABLE')
 
     def test_get_latest_episode_validates_slug(self, tmp_path):

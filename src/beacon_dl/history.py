@@ -6,15 +6,29 @@ file integrity verification through SHA256 checksums.
 
 import hashlib
 import sqlite3
+from contextlib import closing
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Optional
 
 from rich.console import Console
 
 console = Console()
+
+
+def _get_connection(db_path: Path) -> sqlite3.Connection:
+    """Create a database connection with proper settings.
+
+    Args:
+        db_path: Path to the database file
+
+    Returns:
+        Configured SQLite connection
+    """
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 class VerifyResult(Enum):
@@ -36,10 +50,10 @@ class DownloadRecord:
     slug: str
     title: str
     filename: str
-    file_size: Optional[int]
-    sha256: Optional[str]
+    file_size: int | None
+    sha256: str | None
     downloaded_at: str
-    verified_at: Optional[str]
+    verified_at: str | None
     status: str
 
 
@@ -52,7 +66,7 @@ class DownloadHistory:
 
     DB_FILENAME = ".beacon-dl-history.db"
 
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Path | None = None):
         """Initialize download history.
 
         Args:
@@ -62,9 +76,32 @@ class DownloadHistory:
         self.db_path = db_path or Path(self.DB_FILENAME)
         self._init_db()
 
+    @staticmethod
+    def _row_to_record(row: sqlite3.Row) -> DownloadRecord:
+        """Convert a database row to a DownloadRecord.
+
+        Args:
+            row: SQLite row with named columns
+
+        Returns:
+            DownloadRecord instance
+        """
+        return DownloadRecord(
+            id=row["id"],
+            content_id=row["content_id"],
+            slug=row["slug"],
+            title=row["title"],
+            filename=row["filename"],
+            file_size=row["file_size"],
+            sha256=row["sha256"],
+            downloaded_at=row["downloaded_at"],
+            verified_at=row["verified_at"],
+            status=row["status"],
+        )
+
     def _init_db(self) -> None:
         """Initialize database schema."""
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS downloads (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,9 +116,13 @@ class DownloadHistory:
                     status TEXT DEFAULT 'completed'
                 )
             """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_content_id ON downloads(content_id)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_content_id ON downloads(content_id)"
+            )
             conn.execute("CREATE INDEX IF NOT EXISTS idx_slug ON downloads(slug)")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_filename ON downloads(filename)")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_filename ON downloads(filename)"
+            )
             conn.commit()
 
     def is_downloaded(self, content_id: str) -> bool:
@@ -95,14 +136,14 @@ class DownloadHistory:
         Returns:
             True if content was previously downloaded
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute(
                 "SELECT 1 FROM downloads WHERE content_id = ? AND status = 'completed'",
-                (content_id,)
+                (content_id,),
             )
             return cursor.fetchone() is not None
 
-    def get_download(self, content_id: str) -> Optional[DownloadRecord]:
+    def get_download(self, content_id: str) -> DownloadRecord | None:
         """Get download record by content ID.
 
         Args:
@@ -111,29 +152,14 @@ class DownloadHistory:
         Returns:
             DownloadRecord if found, None otherwise
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute(
-                "SELECT * FROM downloads WHERE content_id = ?",
-                (content_id,)
+                "SELECT * FROM downloads WHERE content_id = ?", (content_id,)
             )
             row = cursor.fetchone()
-            if row:
-                return DownloadRecord(
-                    id=row["id"],
-                    content_id=row["content_id"],
-                    slug=row["slug"],
-                    title=row["title"],
-                    filename=row["filename"],
-                    file_size=row["file_size"],
-                    sha256=row["sha256"],
-                    downloaded_at=row["downloaded_at"],
-                    verified_at=row["verified_at"],
-                    status=row["status"],
-                )
-            return None
+            return self._row_to_record(row) if row else None
 
-    def get_download_by_filename(self, filename: str) -> Optional[DownloadRecord]:
+    def get_download_by_filename(self, filename: str) -> DownloadRecord | None:
         """Get download record by filename.
 
         Args:
@@ -142,27 +168,26 @@ class DownloadHistory:
         Returns:
             DownloadRecord if found, None otherwise
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute(
-                "SELECT * FROM downloads WHERE filename = ?",
-                (filename,)
+                "SELECT * FROM downloads WHERE filename = ?", (filename,)
             )
             row = cursor.fetchone()
-            if row:
-                return DownloadRecord(
-                    id=row["id"],
-                    content_id=row["content_id"],
-                    slug=row["slug"],
-                    title=row["title"],
-                    filename=row["filename"],
-                    file_size=row["file_size"],
-                    sha256=row["sha256"],
-                    downloaded_at=row["downloaded_at"],
-                    verified_at=row["verified_at"],
-                    status=row["status"],
-                )
-            return None
+            return self._row_to_record(row) if row else None
+
+    def get_download_by_slug(self, slug: str) -> DownloadRecord | None:
+        """Get download record by content slug.
+
+        Args:
+            slug: The content slug (e.g., 'c4-e007-on-the-scent')
+
+        Returns:
+            DownloadRecord if found, None otherwise
+        """
+        with closing(_get_connection(self.db_path)) as conn:
+            cursor = conn.execute("SELECT * FROM downloads WHERE slug = ?", (slug,))
+            row = cursor.fetchone()
+            return self._row_to_record(row) if row else None
 
     def record_download(
         self,
@@ -184,14 +209,14 @@ class DownloadHistory:
             sha256: SHA256 hash of file
         """
         now = datetime.now().isoformat()
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO downloads
                 (content_id, slug, title, filename, file_size, sha256, downloaded_at, verified_at, status)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed')
                 """,
-                (content_id, slug, title, filename, file_size, sha256, now, now)
+                (content_id, slug, title, filename, file_size, sha256, now, now),
             )
             conn.commit()
 
@@ -230,7 +255,9 @@ class DownloadHistory:
 
         return VerifyResult.VALID
 
-    def verify_file_by_record(self, record: DownloadRecord, file_path: Path) -> VerifyResult:
+    def verify_file_by_record(
+        self, record: DownloadRecord, file_path: Path
+    ) -> VerifyResult:
         """Verify file integrity using an existing record.
 
         Args:
@@ -262,10 +289,10 @@ class DownloadHistory:
     def _update_verified_at(self, content_id: str) -> None:
         """Update the verified_at timestamp for a record."""
         now = datetime.now().isoformat()
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             conn.execute(
                 "UPDATE downloads SET verified_at = ? WHERE content_id = ?",
-                (now, content_id)
+                (now, content_id),
             )
             conn.commit()
 
@@ -297,31 +324,16 @@ class DownloadHistory:
         Returns:
             List of DownloadRecord ordered by download date (newest first)
         """
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute(
                 """
                 SELECT * FROM downloads
                 ORDER BY downloaded_at DESC
                 LIMIT ?
                 """,
-                (limit,)
+                (limit,),
             )
-            records = []
-            for row in cursor.fetchall():
-                records.append(DownloadRecord(
-                    id=row["id"],
-                    content_id=row["content_id"],
-                    slug=row["slug"],
-                    title=row["title"],
-                    filename=row["filename"],
-                    file_size=row["file_size"],
-                    sha256=row["sha256"],
-                    downloaded_at=row["downloaded_at"],
-                    verified_at=row["verified_at"],
-                    status=row["status"],
-                ))
-            return records
+            return [self._row_to_record(row) for row in cursor.fetchall()]
 
     def clear_history(self) -> int:
         """Clear all download history.
@@ -329,7 +341,7 @@ class DownloadHistory:
         Returns:
             Number of records deleted
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM downloads")
             count = cursor.fetchone()[0]
             conn.execute("DELETE FROM downloads")
@@ -342,7 +354,7 @@ class DownloadHistory:
         Returns:
             Number of download records
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute("SELECT COUNT(*) FROM downloads")
             return cursor.fetchone()[0]
 
@@ -355,10 +367,9 @@ class DownloadHistory:
         Returns:
             True if record was removed, False if not found
         """
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(_get_connection(self.db_path)) as conn:
             cursor = conn.execute(
-                "DELETE FROM downloads WHERE content_id = ?",
-                (content_id,)
+                "DELETE FROM downloads WHERE content_id = ?", (content_id,)
             )
             conn.commit()
             return cursor.rowcount > 0

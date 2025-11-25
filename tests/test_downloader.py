@@ -1,15 +1,16 @@
 """Tests for downloader module."""
 
+from unittest.mock import patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from pathlib import Path
-from src.beacon_dl.downloader import BeaconDownloader
+
 from src.beacon_dl.content import (
+    ContentMetadata,
+    SubtitleTrack,
     VideoContent,
     VideoSource,
-    SubtitleTrack,
-    ContentMetadata,
 )
+from src.beacon_dl.downloader import BeaconDownloader
 
 
 @pytest.fixture
@@ -77,9 +78,13 @@ def sample_video_content(sample_metadata, sample_video_source):
 class TestFilenameGeneration:
     """Tests for filename generation logic."""
 
-    def test_generate_filename_episodic_c4_format(self, downloader, sample_video_content, sample_video_source):
+    def test_generate_filename_episodic_c4_format(
+        self, downloader, sample_video_content, sample_video_source
+    ):
         """Test filename generation for C4 E006 format."""
-        filename = downloader._generate_filename(sample_video_content, sample_video_source)
+        filename = downloader._generate_filename(
+            sample_video_content, sample_video_source
+        )
 
         assert filename.startswith("Campaign.4.S04E06")
         assert "Knives.and.Thorns" in filename
@@ -87,7 +92,9 @@ class TestFilenameGeneration:
         assert "H.264" in filename
         assert "AAC" in filename
 
-    def test_generate_filename_episodic_s04e06_format(self, downloader, sample_video_source):
+    def test_generate_filename_episodic_s04e06_format(
+        self, downloader, sample_video_source
+    ):
         """Test filename generation for S04E06 - Title format."""
         metadata = ContentMetadata(
             id="test-id",
@@ -162,7 +169,9 @@ class TestFilenameGeneration:
 
         assert "H.265" in filename
 
-    def test_generate_filename_default_collection_name(self, downloader, sample_video_source):
+    def test_generate_filename_default_collection_name(
+        self, downloader, sample_video_source
+    ):
         """Test filename generation when collection_name is None."""
         metadata = ContentMetadata(
             id="test-id",
@@ -226,7 +235,9 @@ class TestSlugExtraction:
 
     def test_extract_slug_valid_url(self, downloader):
         """Test extracting slug from valid beacon.tv URL."""
-        slug = downloader._extract_slug("https://beacon.tv/content/c4-e006-knives-and-thorns")
+        slug = downloader._extract_slug(
+            "https://beacon.tv/content/c4-e006-knives-and-thorns"
+        )
         assert slug == "c4-e006-knives-and-thorns"
 
     def test_extract_slug_with_query_params(self, downloader):
@@ -279,7 +290,7 @@ class TestSourceSelection:
 class TestMergeFiles:
     """Tests for file merging logic."""
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_merge_files_no_subtitles(self, mock_run, downloader, tmp_path):
         """Test merging video with no subtitles."""
         video_path = tmp_path / "video.mp4"
@@ -296,7 +307,7 @@ class TestMergeFiles:
         assert "-i" in args
         assert str(output_path) in args
 
-    @patch('subprocess.run')
+    @patch("subprocess.run")
     def test_merge_files_with_subtitles(self, mock_run, downloader, tmp_path):
         """Test merging video with subtitle files."""
         video_path = tmp_path / "video.mp4"
@@ -327,11 +338,18 @@ class TestMergeFiles:
 class TestDownloadFlow:
     """Tests for the download flow."""
 
-    @patch.object(BeaconDownloader, '_download_file')
-    @patch.object(BeaconDownloader, '_merge_files')
-    @patch('src.beacon_dl.downloader.get_video_content')
+    @patch.object(BeaconDownloader, "_download_file")
+    @patch.object(BeaconDownloader, "_merge_files")
+    @patch("src.beacon_dl.downloader.get_video_content")
     def test_download_slug_skips_existing_file(
-        self, mock_get_content, mock_merge, mock_download, downloader, tmp_path, monkeypatch, sample_video_content
+        self,
+        mock_get_content,
+        mock_merge,
+        mock_download,
+        downloader,
+        tmp_path,
+        monkeypatch,
+        sample_video_content,
     ):
         """Test that existing files are skipped."""
         mock_get_content.return_value = sample_video_content
@@ -340,7 +358,10 @@ class TestDownloadFlow:
         monkeypatch.chdir(tmp_path)
 
         # Create a file that matches the expected output pattern
-        expected_file = tmp_path / "Campaign.4.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        expected_file = (
+            tmp_path
+            / "Campaign.4.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        )
         expected_file.touch()
 
         # Process slug - should skip
@@ -350,11 +371,18 @@ class TestDownloadFlow:
         mock_download.assert_not_called()
         mock_merge.assert_not_called()
 
-    @patch.object(BeaconDownloader, '_download_file')
-    @patch.object(BeaconDownloader, '_merge_files')
-    @patch('src.beacon_dl.downloader.get_video_content')
+    @patch.object(BeaconDownloader, "_download_file")
+    @patch.object(BeaconDownloader, "_merge_files")
+    @patch("src.beacon_dl.downloader.get_video_content")
     def test_download_slug_downloads_new_file(
-        self, mock_get_content, mock_merge, mock_download, downloader, tmp_path, monkeypatch, sample_video_content
+        self,
+        mock_get_content,
+        mock_merge,
+        mock_download,
+        downloader,
+        tmp_path,
+        monkeypatch,
+        sample_video_content,
     ):
         """Test that new files are downloaded."""
         mock_get_content.return_value = sample_video_content

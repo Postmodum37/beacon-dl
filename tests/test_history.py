@@ -1,9 +1,5 @@
 """Tests for download history module."""
 
-import pytest
-from pathlib import Path
-from datetime import datetime
-
 from src.beacon_dl.history import DownloadHistory, DownloadRecord, VerifyResult
 
 
@@ -13,7 +9,7 @@ class TestDownloadHistory:
     def test_init_creates_database(self, tmp_path):
         """Test database is created on initialization."""
         db_path = tmp_path / "test.db"
-        history = DownloadHistory(db_path)
+        DownloadHistory(db_path)  # Creates database as side effect
 
         assert db_path.exists()
 
@@ -211,6 +207,132 @@ class TestDownloadHistory:
         assert record.title == "New Title"
         assert record.filename == "new.mkv"
         assert record.file_size == 2000
+
+    def test_get_download_by_slug(self, tmp_path):
+        """Test getting download by slug."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        history.record_download(
+            content_id="abc123",
+            slug="c4-e007-on-the-scent",
+            title="Test Title",
+            filename="test_file.mkv",
+            file_size=1000,
+            sha256="abc",
+        )
+
+        record = history.get_download_by_slug("c4-e007-on-the-scent")
+
+        assert record is not None
+        assert record.content_id == "abc123"
+        assert record.slug == "c4-e007-on-the-scent"
+
+    def test_get_download_by_slug_not_found(self, tmp_path):
+        """Test getting non-existent slug returns None."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        record = history.get_download_by_slug("nonexistent-slug")
+        assert record is None
+
+
+class TestVerifyFileByRecord:
+    """Tests for verify_file_by_record method."""
+
+    def test_verify_valid_file_by_record(self, tmp_path):
+        """Test verifying a valid file with record."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        # Create a test file
+        test_file = tmp_path / "test.mkv"
+        test_file.write_bytes(b"test content" * 100)
+        file_size = test_file.stat().st_size
+        sha256 = history.calculate_sha256(test_file)
+
+        # Record download
+        history.record_download(
+            content_id="abc123",
+            slug="test-slug",
+            title="Test Title",
+            filename=str(test_file),
+            file_size=file_size,
+            sha256=sha256,
+        )
+
+        record = history.get_download("abc123")
+        result = history.verify_file_by_record(record, test_file)
+
+        assert result == VerifyResult.VALID
+
+    def test_verify_file_missing_by_record(self, tmp_path):
+        """Test verifying missing file by record."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        history.record_download(
+            content_id="abc123",
+            slug="test-slug",
+            title="Test Title",
+            filename="nonexistent.mkv",
+            file_size=1000,
+            sha256="abc",
+        )
+
+        record = history.get_download("abc123")
+        result = history.verify_file_by_record(record, tmp_path / "nonexistent.mkv")
+
+        assert result == VerifyResult.FILE_MISSING
+
+    def test_verify_size_mismatch_by_record(self, tmp_path):
+        """Test verifying file with size mismatch."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        # Create a test file
+        test_file = tmp_path / "test.mkv"
+        test_file.write_bytes(b"test content")
+
+        # Record with wrong size
+        history.record_download(
+            content_id="abc123",
+            slug="test-slug",
+            title="Test Title",
+            filename=str(test_file),
+            file_size=99999,  # Wrong size
+            sha256="abc",
+        )
+
+        record = history.get_download("abc123")
+        result = history.verify_file_by_record(record, test_file)
+
+        assert result == VerifyResult.SIZE_MISMATCH
+
+    def test_verify_hash_mismatch_by_record(self, tmp_path):
+        """Test verifying file with hash mismatch."""
+        db_path = tmp_path / "test.db"
+        history = DownloadHistory(db_path)
+
+        # Create a test file
+        test_file = tmp_path / "test.mkv"
+        test_file.write_bytes(b"test content")
+        file_size = test_file.stat().st_size
+
+        # Record with wrong hash
+        history.record_download(
+            content_id="abc123",
+            slug="test-slug",
+            title="Test Title",
+            filename=str(test_file),
+            file_size=file_size,
+            sha256="wrong_hash_value",
+        )
+
+        record = history.get_download("abc123")
+        result = history.verify_file_by_record(record, test_file)
+
+        assert result == VerifyResult.HASH_MISMATCH
 
 
 class TestSHA256Calculation:

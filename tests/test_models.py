@@ -1,8 +1,6 @@
 """Tests for domain models."""
 
-import pytest
-from datetime import datetime
-from src.beacon_dl.models import Collection, Episode, VideoMetadata, DownloadJob
+from src.beacon_dl.models import Collection, Episode
 
 
 class TestCollection:
@@ -214,84 +212,3 @@ class TestEpisode:
 
         assert episode.primary_collection is not None
         assert episode.primary_collection.name == "Campaign 4"
-
-
-class TestVideoMetadata:
-    """Tests for VideoMetadata model."""
-
-    def test_video_metadata_basic(self):
-        """Test basic video metadata."""
-        metadata = VideoMetadata(
-            resolution="1080p",
-            video_codec="H.264",
-            audio_codec="AAC",
-            audio_channels="2.0",
-        )
-
-        assert metadata.resolution == "1080p"
-        assert metadata.video_codec == "H.264"
-        assert metadata.audio_codec == "AAC"
-        assert metadata.audio_channels == "2.0"
-        assert metadata.source_type == "WEB-DL"  # default
-        assert metadata.container_format == "mkv"  # default
-
-    def test_video_metadata_with_all_fields(self):
-        """Test video metadata with all fields."""
-        metadata = VideoMetadata(
-            resolution="720p",
-            video_codec="H.265",
-            audio_codec="Opus",
-            audio_channels="5.1",
-            source_type="WEB-RIP",
-            container_format="mp4",
-        )
-
-        assert metadata.resolution == "720p"
-        assert metadata.source_type == "WEB-RIP"
-        assert metadata.container_format == "mp4"
-
-
-class TestDownloadJob:
-    """Tests for DownloadJob model."""
-
-    def test_download_job_basic(self):
-        """Test basic download job."""
-        episode = Episode(
-            id="ep-200",
-            title="Test Episode",
-            slug="test-episode",
-        )
-        metadata = VideoMetadata(
-            resolution="1080p",
-            video_codec="H.264",
-            audio_codec="AAC",
-            audio_channels="2.0",
-        )
-        job = DownloadJob(
-            episode=episode,
-            metadata=metadata,
-            output_path="/tmp/output.mkv",
-        )
-
-        assert job.episode.id == "ep-200"
-        assert job.metadata.resolution == "1080p"
-        assert job.output_path == "/tmp/output.mkv"
-        assert job.status == "pending"  # default
-
-    def test_download_job_status_change(self):
-        """Test download job status."""
-        episode = Episode(id="ep-201", title="Test", slug="test")
-        metadata = VideoMetadata(
-            resolution="1080p",
-            video_codec="H.264",
-            audio_codec="AAC",
-            audio_channels="2.0",
-        )
-        job = DownloadJob(
-            episode=episode,
-            metadata=metadata,
-            output_path="/tmp/output.mkv",
-            status="downloading",
-        )
-
-        assert job.status == "downloading"

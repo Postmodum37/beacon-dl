@@ -3,17 +3,18 @@
 This module provides the command-line interface for the BeaconTV downloader.
 """
 
+from pathlib import Path
+
 import typer
 from rich.console import Console
 from rich.table import Table
-from typing import Optional
-from pathlib import Path
 
-from .downloader import BeaconDownloader
-from .config import settings
-from .graphql import BeaconGraphQL
 from .auth import get_cookie_file
-from .history import DownloadHistory, VerifyResult
+from .config import settings
+from .content import get_video_content
+from .downloader import BeaconDownloader
+from .graphql import BeaconGraphQL
+from .history import DownloadHistory
 
 app = typer.Typer(
     help="Beacon TV Downloader - Simplified direct download",
@@ -24,7 +25,7 @@ console = Console()
 
 
 @app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
+def default_callback(ctx: typer.Context) -> None:
     """Default to download command when no subcommand is provided."""
     if ctx.invoked_subcommand is None:
         # No subcommand provided - run download with defaults
@@ -39,9 +40,9 @@ def main(ctx: typer.Context):
 
 
 def get_authenticated_cookie_file(
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    browser: Optional[str] = None,
+    username: str | None = None,
+    password: str | None = None,
+    browser: str | None = None,
 ) -> Path:
     """Get authenticated cookie file, prompting for login if needed.
 
@@ -76,13 +77,21 @@ def get_authenticated_cookie_file(
 
 @app.command()
 def download(
-    url: Optional[str] = typer.Argument(None, help="Beacon TV URL to download (default: latest episode from Campaign 4)"),
-    username: Optional[str] = typer.Option(None, help="Beacon TV Username"),
-    password: Optional[str] = typer.Option(None, help="Beacon TV Password"),
-    browser: Optional[str] = typer.Option(None, help="Browser profile to use (e.g. firefox:default)"),
-    series: Optional[str] = typer.Option(None, help="Series slug to fetch latest episode from (default: campaign-4)"),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug mode with verbose output"),
-):
+    url: str | None = typer.Argument(
+        None, help="Beacon TV URL to download (default: latest episode from Campaign 4)"
+    ),
+    username: str | None = typer.Option(None, help="Beacon TV Username"),
+    password: str | None = typer.Option(None, help="Beacon TV Password"),
+    browser: str | None = typer.Option(
+        None, help="Browser profile to use (e.g. firefox:default)"
+    ),
+    series: str | None = typer.Option(
+        None, help="Series slug to fetch latest episode from (default: campaign-4)"
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug mode with verbose output"
+    ),
+) -> None:
     """
     Download video from Beacon TV.
 
@@ -98,7 +107,9 @@ def download(
         if debug:
             settings.debug = debug
             console.print("[yellow]Debug mode enabled[/yellow]")
-            console.print(f"[dim]Settings: release_group={settings.release_group}, resolution={settings.preferred_resolution}[/dim]")
+            console.print(
+                f"[dim]Settings: release_group={settings.release_group}, resolution={settings.preferred_resolution}[/dim]"
+            )
 
         console.print("[bold blue]Beacon TV Downloader[/bold blue]")
 
@@ -108,13 +119,17 @@ def download(
         # If no URL provided, fetch latest episode
         if not url:
             series_slug = series or "campaign-4"
-            console.print(f"[yellow]No URL provided. Fetching latest episode from {series_slug}...[/yellow]")
+            console.print(
+                f"[yellow]No URL provided. Fetching latest episode from {series_slug}...[/yellow]"
+            )
 
             client = BeaconGraphQL(cookie_file)
             latest = client.get_latest_episode(series_slug)
 
             if not latest:
-                console.print(f"[red]❌ Failed to get latest episode from {series_slug}[/red]")
+                console.print(
+                    f"[red]❌ Failed to get latest episode from {series_slug}[/red]"
+                )
                 raise typer.Exit(code=1)
 
             url = f"https://beacon.tv/content/{latest['slug']}"
@@ -140,10 +155,10 @@ def download(
 
 @app.command("list-series")
 def list_series(
-    username: Optional[str] = typer.Option(None, help="Beacon TV Username"),
-    password: Optional[str] = typer.Option(None, help="Beacon TV Password"),
-    browser: Optional[str] = typer.Option(None, help="Browser profile to use"),
-):
+    username: str | None = typer.Option(None, help="Beacon TV Username"),
+    password: str | None = typer.Option(None, help="Beacon TV Password"),
+    browser: str | None = typer.Option(None, help="Browser profile to use"),
+) -> None:
     """
     List all available series on Beacon TV.
     """
@@ -168,7 +183,7 @@ def list_series(
             table.add_row(
                 collection["name"],
                 collection["slug"],
-                str(collection.get("itemCount", "?"))
+                str(collection.get("itemCount", "?")),
             )
 
         console.print(table)
@@ -184,10 +199,10 @@ def list_series(
 @app.command("list-episodes")
 def list_episodes(
     series: str = typer.Argument(..., help="Series slug (e.g., campaign-4)"),
-    username: Optional[str] = typer.Option(None, help="Beacon TV Username"),
-    password: Optional[str] = typer.Option(None, help="Beacon TV Password"),
-    browser: Optional[str] = typer.Option(None, help="Browser profile to use"),
-):
+    username: str | None = typer.Option(None, help="Beacon TV Username"),
+    password: str | None = typer.Option(None, help="Beacon TV Password"),
+    browser: str | None = typer.Option(None, help="Browser profile to use"),
+) -> None:
     """
     List all episodes in a series.
 
@@ -219,7 +234,11 @@ def list_episodes(
         for episode in episodes:
             season = episode.get("seasonNumber", "?")
             ep_num = episode.get("episodeNumber", "?")
-            episode_str = f"S{season:02d}E{ep_num:02d}" if isinstance(season, int) and isinstance(ep_num, int) else f"S{season}E{ep_num}"
+            episode_str = (
+                f"S{season:02d}E{ep_num:02d}"
+                if isinstance(season, int) and isinstance(ep_num, int)
+                else f"S{season}E{ep_num}"
+            )
 
             release_date = episode.get("releaseDate", "")
             date_str = release_date[:10] if release_date else "?"
@@ -237,7 +256,7 @@ def list_episodes(
 
         console.print(table)
         console.print(f"\n[dim]Total: {len(episodes)} episodes[/dim]")
-        console.print(f"[dim]URL format: https://beacon.tv/content/{{slug}}[/dim]")
+        console.print("[dim]URL format: https://beacon.tv/content/{slug}[/dim]")
 
     except typer.Exit:
         raise
@@ -248,11 +267,13 @@ def list_episodes(
 
 @app.command("check-new")
 def check_new(
-    series: str = typer.Option("campaign-4", help="Series slug to check (default: campaign-4)"),
-    username: Optional[str] = typer.Option(None, help="Beacon TV Username"),
-    password: Optional[str] = typer.Option(None, help="Beacon TV Password"),
-    browser: Optional[str] = typer.Option(None, help="Browser profile to use"),
-):
+    series: str = typer.Option(
+        "campaign-4", help="Series slug to check (default: campaign-4)"
+    ),
+    username: str | None = typer.Option(None, help="Beacon TV Username"),
+    password: str | None = typer.Option(None, help="Beacon TV Password"),
+    browser: str | None = typer.Option(None, help="Browser profile to use"),
+) -> None:
     """
     Check for new episodes in a series.
 
@@ -272,20 +293,26 @@ def check_new(
 
         season = latest.get("seasonNumber", "?")
         ep_num = latest.get("episodeNumber", "?")
-        episode_str = f"S{season:02d}E{ep_num:02d}" if isinstance(season, int) and isinstance(ep_num, int) else f"S{season}E{ep_num}"
+        episode_str = (
+            f"S{season:02d}E{ep_num:02d}"
+            if isinstance(season, int) and isinstance(ep_num, int)
+            else f"S{season}E{ep_num}"
+        )
 
         release_date = latest.get("releaseDate", "")
         date_str = release_date[:10] if release_date else "Unknown"
 
-        console.print(f"\n[green]✓ Latest episode found:[/green]")
-        console.print(f"  [yellow]{episode_str}[/yellow] - [bold]{latest['title']}[/bold]")
+        console.print("\n[green]✓ Latest episode found:[/green]")
+        console.print(
+            f"  [yellow]{episode_str}[/yellow] - [bold]{latest['title']}[/bold]"
+        )
         console.print(f"  Released: {date_str}")
         console.print(f"  URL: https://beacon.tv/content/{latest['slug']}")
 
-        console.print(f"\n[dim]To download:[/dim]")
+        console.print("\n[dim]To download:[/dim]")
         console.print(f"  beacon-dl https://beacon.tv/content/{latest['slug']}")
-        console.print(f"  [dim]or just:[/dim]")
-        console.print(f"  beacon-dl  [dim](downloads latest automatically)[/dim]")
+        console.print("  [dim]or just:[/dim]")
+        console.print("  beacon-dl  [dim](downloads latest automatically)[/dim]")
 
     except typer.Exit:
         raise
@@ -297,13 +324,17 @@ def check_new(
 @app.command("batch-download")
 def batch_download(
     series: str = typer.Argument(..., help="Series slug (e.g., campaign-4)"),
-    start: int = typer.Option(1, "--start", "-s", help="Start episode number (default: 1)"),
-    end: Optional[int] = typer.Option(None, "--end", "-e", help="End episode number (default: all)"),
-    username: Optional[str] = typer.Option(None, help="Beacon TV Username"),
-    password: Optional[str] = typer.Option(None, help="Beacon TV Password"),
-    browser: Optional[str] = typer.Option(None, help="Browser profile to use"),
+    start: int = typer.Option(
+        1, "--start", "-s", help="Start episode number (default: 1)"
+    ),
+    end: int | None = typer.Option(
+        None, "--end", "-e", help="End episode number (default: all)"
+    ),
+    username: str | None = typer.Option(None, help="Beacon TV Username"),
+    password: str | None = typer.Option(None, help="Beacon TV Password"),
+    browser: str | None = typer.Option(None, help="Browser profile to use"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug mode"),
-):
+) -> None:
     """
     Batch download multiple episodes from a series.
 
@@ -339,10 +370,14 @@ def batch_download(
             filtered_episodes.append(episode)
 
         if not filtered_episodes:
-            console.print(f"[yellow]No episodes found in range {start}-{end or 'end'}[/yellow]")
+            console.print(
+                f"[yellow]No episodes found in range {start}-{end or 'end'}[/yellow]"
+            )
             return
 
-        console.print(f"[green]Found {len(filtered_episodes)} episodes to download[/green]\n")
+        console.print(
+            f"[green]Found {len(filtered_episodes)} episodes to download[/green]\n"
+        )
 
         downloader = BeaconDownloader(cookie_file)
         success_count = 0
@@ -350,7 +385,9 @@ def batch_download(
 
         for i, episode in enumerate(filtered_episodes, 1):
             url = f"https://beacon.tv/content/{episode['slug']}"
-            console.print(f"\n[bold cyan]Downloading {i}/{len(filtered_episodes)}:[/bold cyan] {episode['title']}")
+            console.print(
+                f"\n[bold cyan]Downloading {i}/{len(filtered_episodes)}:[/bold cyan] {episode['title']}"
+            )
 
             try:
                 downloader.download_url(url)
@@ -363,11 +400,13 @@ def batch_download(
                     console.print_exception()
 
                 if i < len(filtered_episodes):
-                    continue_download = typer.confirm("\nContinue with next episode?", default=True)
+                    continue_download = typer.confirm(
+                        "\nContinue with next episode?", default=True
+                    )
                     if not continue_download:
                         break
 
-        console.print(f"\n[bold]Download Summary:[/bold]")
+        console.print("\n[bold]Download Summary:[/bold]")
         console.print(f"  [green]✓ Success: {success_count}[/green]")
         if failed_count > 0:
             console.print(f"  [red]✗ Failed: {failed_count}[/red]")
@@ -387,7 +426,7 @@ def batch_download(
 @app.command("history")
 def show_history(
     limit: int = typer.Option(20, "--limit", "-n", help="Number of records to show"),
-):
+) -> None:
     """
     Show download history.
 
@@ -399,7 +438,9 @@ def show_history(
 
         if not downloads:
             console.print("[yellow]No downloads in history yet[/yellow]")
-            console.print("[dim]Downloads will be tracked after your first download[/dim]")
+            console.print(
+                "[dim]Downloads will be tracked after your first download[/dim]"
+            )
             return
 
         table = Table(show_header=True, header_style="bold cyan")
@@ -416,13 +457,16 @@ def show_history(
             # Parse episode from title
             episode_str = "?"
             import re
+
             match = re.match(r"C(\d+)\s+E(\d+)", dl.title)
             if match:
                 episode_str = f"S{int(match.group(1)):02d}E{int(match.group(2)):02d}"
             else:
                 match = re.match(r"S(\d+)E(\d+)", dl.title)
                 if match:
-                    episode_str = f"S{int(match.group(1)):02d}E{int(match.group(2)):02d}"
+                    episode_str = (
+                        f"S{int(match.group(1)):02d}E{int(match.group(2)):02d}"
+                    )
 
             # Format file size
             if dl.file_size:
@@ -436,7 +480,11 @@ def show_history(
                 size_str = "?"
 
             # Status indicator
-            status_str = "[green]OK[/green]" if dl.status == "completed" else f"[red]{dl.status}[/red]"
+            status_str = (
+                "[green]OK[/green]"
+                if dl.status == "completed"
+                else f"[red]{dl.status}[/red]"
+            )
 
             # Title (truncate if too long)
             title = dl.title
@@ -455,9 +503,13 @@ def show_history(
 
 @app.command("verify")
 def verify_files(
-    filename: Optional[str] = typer.Argument(None, help="Specific filename to verify (optional)"),
-    full: bool = typer.Option(False, "--full", "-f", help="Full verification with SHA256 hash check"),
-):
+    filename: str | None = typer.Argument(
+        None, help="Specific filename to verify (optional)"
+    ),
+    full: bool = typer.Option(
+        False, "--full", "-f", help="Full verification with SHA256 hash check"
+    ),
+) -> None:
     """
     Verify integrity of downloaded files.
 
@@ -497,7 +549,9 @@ def verify_files(
             actual_size = file_path.stat().st_size
             if dl.file_size and actual_size != dl.file_size:
                 console.print(f"[red]SIZE MISMATCH[/red] {dl.filename}")
-                console.print(f"  [dim]Expected: {dl.file_size}, Actual: {actual_size}[/dim]")
+                console.print(
+                    f"  [dim]Expected: {dl.file_size}, Actual: {actual_size}[/dim]"
+                )
                 invalid_count += 1
                 continue
 
@@ -515,7 +569,7 @@ def verify_files(
             console.print(f"[green]OK[/green] {file_path.name}")
             valid_count += 1
 
-        console.print(f"\n[bold]Verification Summary:[/bold]")
+        console.print("\n[bold]Verification Summary:[/bold]")
         console.print(f"  [green]Valid: {valid_count}[/green]")
         if invalid_count > 0:
             console.print(f"  [red]Invalid: {invalid_count}[/red]")
@@ -530,7 +584,7 @@ def verify_files(
 @app.command("clear-history")
 def clear_history(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
-):
+) -> None:
     """
     Clear all download history.
 
@@ -546,7 +600,9 @@ def clear_history(
             return
 
         if not force:
-            confirm = typer.confirm(f"Are you sure you want to clear {count} download record(s)?")
+            confirm = typer.confirm(
+                f"Are you sure you want to clear {count} download record(s)?"
+            )
             if not confirm:
                 console.print("[yellow]Cancelled[/yellow]")
                 return
@@ -559,7 +615,157 @@ def clear_history(
         raise typer.Exit(code=1)
 
 
-def main():
+def _extract_slug(url_or_slug: str) -> str:
+    """Extract slug from URL or return as-is."""
+    if url_or_slug.startswith("http"):
+        # Extract from URL like https://beacon.tv/content/c4-e007
+        return url_or_slug.split("/content/")[-1].split("?")[0]
+    return url_or_slug
+
+
+def _format_duration(seconds: int) -> str:
+    """Convert seconds to 'Xh Ym' format."""
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    if hours > 0:
+        return f"{hours}h {minutes}m"
+    return f"{minutes}m"
+
+
+def _format_bitrate(kbps: int) -> str:
+    """Format bitrate for display."""
+    if kbps >= 1000:
+        return f"{kbps / 1000:.1f} Mbps"
+    return f"{kbps} kbps"
+
+
+def _format_file_size(size_bytes: int) -> str:
+    """Format file size for display."""
+    if size_bytes >= 1_000_000_000:
+        return f"{size_bytes / 1_000_000_000:.2f} GB"
+    elif size_bytes >= 1_000_000:
+        return f"{size_bytes / 1_000_000:.1f} MB"
+    return f"{size_bytes / 1_000:.1f} KB"
+
+
+@app.command("info")
+def show_info(
+    url_or_slug: str = typer.Argument(..., help="Episode URL or slug"),
+    username: str | None = typer.Option(None, help="Beacon TV Username"),
+    password: str | None = typer.Option(None, help="Beacon TV Password"),
+    browser: str | None = typer.Option(None, help="Browser profile to use"),
+) -> None:
+    """
+    Show detailed information about an episode.
+
+    Displays available resolutions, subtitles, metadata, and download status.
+
+    Examples:
+        beacon-dl info c4-e007-on-the-scent
+        beacon-dl info https://beacon.tv/content/c4-e007-on-the-scent
+    """
+    try:
+        slug = _extract_slug(url_or_slug)
+        console.print("[bold blue]Episode Information[/bold blue]\n")
+
+        # Get authenticated cookie file
+        cookie_file = get_authenticated_cookie_file(username, password, browser)
+
+        # Fetch video content
+        content = get_video_content(slug, cookie_file)
+        if not content:
+            console.print(f"[red]Failed to fetch content for: {slug}[/red]")
+            raise typer.Exit(code=1)
+
+        meta = content.metadata
+
+        # Episode info section
+        console.print(f"[bold]Title:[/bold]       {meta.title}")
+        if meta.collection_name:
+            console.print(f"[bold]Series:[/bold]      {meta.collection_name}")
+        if meta.season_number and meta.episode_number:
+            console.print(
+                f"[bold]Episode:[/bold]     S{meta.season_number:02d}E{meta.episode_number:02d}"
+            )
+        if meta.duration:
+            # Duration from API is in milliseconds, convert to seconds
+            duration_seconds = meta.duration // 1000
+            console.print(
+                f"[bold]Duration:[/bold]    {_format_duration(duration_seconds)}"
+            )
+        console.print(f"[bold]URL:[/bold]         https://beacon.tv/content/{slug}")
+
+        # Description
+        if meta.description:
+            console.print("\n[bold]Description:[/bold]")
+            # Truncate long descriptions
+            desc = meta.description
+            if len(desc) > 300:
+                desc = desc[:297] + "..."
+            console.print(f"  [dim]{desc}[/dim]")
+
+        # Available resolutions table
+        if content.sources:
+            console.print("\n[bold cyan]Available Resolutions[/bold cyan]")
+            res_table = Table(show_header=True, header_style="bold")
+            res_table.add_column("Quality", style="yellow")
+            res_table.add_column("Resolution", style="green")
+            res_table.add_column("Bitrate", style="cyan", justify="right")
+            res_table.add_column("Format", style="dim")
+
+            for source in content.sources:
+                res_table.add_row(
+                    source.label or f"{source.height}p",
+                    f"{source.width}x{source.height}",
+                    _format_bitrate(source.bitrate) if source.bitrate else "?",
+                    source.file_type or "video/mp4",
+                )
+
+            console.print(res_table)
+
+        # Subtitles table
+        if content.subtitles:
+            console.print("\n[bold cyan]Subtitles[/bold cyan]")
+            sub_table = Table(show_header=True, header_style="bold")
+            sub_table.add_column("Language", style="green")
+            sub_table.add_column("Code", style="dim")
+
+            for sub in content.subtitles:
+                sub_table.add_row(sub.label, sub.language)
+
+            console.print(sub_table)
+        else:
+            console.print("\n[dim]No subtitles available[/dim]")
+
+        # Download history status
+        history = DownloadHistory()
+        record = history.get_download_by_slug(slug)
+
+        console.print()
+        if record:
+            console.print("[bold green]Download Status: ✓ Downloaded[/bold green]")
+            console.print(f"  [dim]Filename:[/dim] {record.filename}")
+            if record.file_size:
+                console.print(
+                    f"  [dim]Size:[/dim]     {_format_file_size(record.file_size)}"
+                )
+            if record.downloaded_at:
+                date_str = record.downloaded_at[:10]
+                console.print(f"  [dim]Date:[/dim]     {date_str}")
+        else:
+            console.print("[yellow]Download Status: Not downloaded[/yellow]")
+            console.print(f"  [dim]Run: beacon-dl {slug}[/dim]")
+
+    except typer.Exit:
+        raise
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        if settings.debug:
+            console.print_exception()
+        raise typer.Exit(code=1)
+
+
+def main() -> None:
     app()
 
 

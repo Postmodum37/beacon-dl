@@ -9,13 +9,13 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
-import http.cookiejar
 
 import httpx
 from rich.console import Console
 
 from .config import settings
+from .constants import LANGUAGE_TO_ISO_MAP
+from .utils import load_cookies
 
 console = Console()
 
@@ -52,11 +52,11 @@ class ContentMetadata:
     id: str
     title: str
     slug: str
-    season_number: Optional[int]
-    episode_number: Optional[int]
-    duration: Optional[int]  # seconds
-    description: Optional[str]
-    collection_name: Optional[str]  # Series name
+    season_number: int | None
+    episode_number: int | None
+    duration: int | None  # milliseconds
+    description: str | None
+    collection_name: str | None  # Series name
 
 
 @dataclass
@@ -66,33 +66,10 @@ class VideoContent:
     metadata: ContentMetadata
     sources: list[VideoSource]
     subtitles: list[SubtitleTrack]
-    hls_url: Optional[str]  # M3U8 manifest URL
+    hls_url: str | None  # M3U8 manifest URL
 
 
-def load_cookies(cookie_file: Path) -> dict[str, str]:
-    """Load cookies from Netscape format file.
-
-    Args:
-        cookie_file: Path to cookie file
-
-    Returns:
-        Dictionary of cookie name -> value
-    """
-    jar = http.cookiejar.MozillaCookieJar(str(cookie_file))
-    try:
-        jar.load(ignore_discard=True, ignore_expires=True)
-    except Exception as e:
-        console.print(f"[yellow]⚠️  Could not load cookies: {e}[/yellow]")
-        return {}
-
-    cookies = {}
-    for cookie in jar:
-        cookies[cookie.name] = cookie.value
-
-    return cookies
-
-
-def fetch_content_page(slug: str, cookie_file: Path) -> Optional[str]:
+def fetch_content_page(slug: str, cookie_file: Path) -> str | None:
     """Fetch a content page from beacon.tv.
 
     Args:
@@ -106,7 +83,9 @@ def fetch_content_page(slug: str, cookie_file: Path) -> Optional[str]:
 
     if not cookies.get("beacon-session"):
         console.print("[red]❌ No beacon-session cookie found![/red]")
-        console.print("[yellow]Please authenticate first with --username and --password[/yellow]")
+        console.print(
+            "[yellow]Please authenticate first with --username and --password[/yellow]"
+        )
         return None
 
     url = f"https://beacon.tv/content/{slug}"
@@ -124,14 +103,16 @@ def fetch_content_page(slug: str, cookie_file: Path) -> Optional[str]:
             resp.raise_for_status()
             return resp.text
     except httpx.HTTPStatusError as e:
-        console.print(f"[red]❌ Failed to fetch content page (HTTP {e.response.status_code}): {e}[/red]")
+        console.print(
+            f"[red]❌ Failed to fetch content page (HTTP {e.response.status_code}): {e}[/red]"
+        )
         return None
     except httpx.RequestError as e:
         console.print(f"[red]❌ Failed to fetch content page: {e}[/red]")
         return None
 
 
-def parse_next_data(html: str) -> Optional[dict]:
+def parse_next_data(html: str) -> dict | None:
     """Extract and parse __NEXT_DATA__ from HTML.
 
     Args:
@@ -149,7 +130,9 @@ def parse_next_data(html: str) -> Optional[dict]:
         # Check for Cloudflare challenge
         if "security check" in html.lower() or "cf_chl" in html:
             console.print("[red]❌ Cloudflare challenge detected![/red]")
-            console.print("[yellow]Your session may have expired. Please re-authenticate.[/yellow]")
+            console.print(
+                "[yellow]Your session may have expired. Please re-authenticate.[/yellow]"
+            )
         else:
             console.print("[red]❌ __NEXT_DATA__ not found in page[/red]")
         return None
@@ -161,7 +144,7 @@ def parse_next_data(html: str) -> Optional[dict]:
         return None
 
 
-def extract_video_content(next_data: dict, slug: str) -> Optional[VideoContent]:
+def extract_video_content(next_data: dict, slug: str) -> VideoContent | None:
     """Extract video content from parsed __NEXT_DATA__.
 
     Args:
@@ -180,7 +163,7 @@ def extract_video_content(next_data: dict, slug: str) -> Optional[VideoContent]:
 
     # Find the content by slug
     content_data = None
-    for key, value in apollo.items():
+    for _key, value in apollo.items():
         if isinstance(value, dict) and value.get("slug") == slug:
             content_data = value
             break
@@ -297,7 +280,7 @@ def extract_video_content(next_data: dict, slug: str) -> Optional[VideoContent]:
     )
 
 
-def get_video_content(slug: str, cookie_file: Path) -> Optional[VideoContent]:
+def get_video_content(slug: str, cookie_file: Path) -> VideoContent | None:
     """Fetch and parse video content for a given slug.
 
     This is the main entry point for getting video content.
@@ -320,7 +303,7 @@ def get_video_content(slug: str, cookie_file: Path) -> Optional[VideoContent]:
     return extract_video_content(next_data, slug)
 
 
-def _safe_int(value) -> Optional[int]:
+def _safe_int(value) -> int | None:
     """Safely convert a value to int."""
     if value is None:
         return None
@@ -330,7 +313,7 @@ def _safe_int(value) -> Optional[int]:
         return None
 
 
-def _parse_season_episode(title: str) -> tuple[Optional[int], Optional[int]]:
+def _parse_season_episode(title: str) -> tuple[int | None, int | None]:
     """Parse season and episode numbers from title.
 
     Handles formats like:
@@ -364,7 +347,7 @@ def _parse_season_episode(title: str) -> tuple[Optional[int], Optional[int]]:
     return None, None
 
 
-def _extract_collection_name(content_data: dict, apollo: dict) -> Optional[str]:
+def _extract_collection_name(content_data: dict, apollo: dict) -> str | None:
     """Extract collection/series name from content data."""
     collection = content_data.get("primaryCollection")
     if not collection:
@@ -383,24 +366,8 @@ def _extract_collection_name(content_data: dict, apollo: dict) -> Optional[str]:
 
 
 def _label_to_iso(label: str) -> str:
-    """Convert subtitle label to ISO 639-2 language code."""
-    label_lower = label.lower()
-    mapping = {
-        "english": "eng",
-        "spanish": "spa",
-        "french": "fra",
-        "italian": "ita",
-        "portuguese": "por",
-        "german": "deu",
-        "japanese": "jpn",
-        "korean": "kor",
-        "chinese": "chi",
-        "russian": "rus",
-        "dutch": "nld",
-        "polish": "pol",
-        "swedish": "swe",
-        "norwegian": "nor",
-        "danish": "dan",
-        "finnish": "fin",
-    }
-    return mapping.get(label_lower, "und")
+    """Convert subtitle label to ISO 639-2 language code.
+
+    Uses the centralized LANGUAGE_TO_ISO_MAP from constants.py.
+    """
+    return LANGUAGE_TO_ISO_MAP.get(label.lower(), "und")

@@ -3,12 +3,12 @@
 Tests all beacon-dl CLI commands with mocked dependencies.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 from typer.testing import CliRunner
-from unittest.mock import patch, Mock
-from pathlib import Path
-from src.beacon_dl.main import app
 
+from src.beacon_dl.main import app
 
 runner = CliRunner()
 
@@ -16,7 +16,7 @@ runner = CliRunner()
 @pytest.fixture
 def mock_graphql_client():
     """Mock GraphQL client for testing."""
-    with patch('src.beacon_dl.main.BeaconGraphQL') as mock:
+    with patch("src.beacon_dl.main.BeaconGraphQL") as mock:
         client = Mock()
         mock.return_value = client
         yield client
@@ -28,7 +28,7 @@ def mock_cookie_file(tmp_path):
     cookie_file = tmp_path / "test_cookies.txt"
     cookie_file.write_text("# Netscape HTTP Cookie File\n")
 
-    with patch('src.beacon_dl.main.get_cookie_file') as mock:
+    with patch("src.beacon_dl.main.get_cookie_file") as mock:
         mock.return_value = cookie_file
         yield cookie_file
 
@@ -51,7 +51,9 @@ class TestListSeriesCommand:
         assert "12" in result.stdout
         assert "Candela Obscura" in result.stdout
 
-    def test_list_series_handles_empty_list(self, mock_graphql_client, mock_cookie_file):
+    def test_list_series_handles_empty_list(
+        self, mock_graphql_client, mock_cookie_file
+    ):
         """Test list-series with no series available."""
         mock_graphql_client.list_collections.return_value = []
 
@@ -62,7 +64,7 @@ class TestListSeriesCommand:
 
     def test_list_series_handles_missing_cookies(self):
         """Test list-series without authentication."""
-        with patch('src.beacon_dl.main.get_cookie_file') as mock:
+        with patch("src.beacon_dl.main.get_cookie_file") as mock:
             mock.return_value = None
 
             result = runner.invoke(app, ["list-series"])
@@ -104,10 +106,14 @@ class TestListEpisodesCommand:
         assert "S04E01" in result.stdout
         assert "The Fall of Thjazi Fang" in result.stdout
 
-    def test_list_episodes_handles_no_episodes(self, mock_graphql_client, mock_cookie_file):
+    def test_list_episodes_handles_no_episodes(
+        self, mock_graphql_client, mock_cookie_file
+    ):
         """Test list-episodes with series that has no episodes."""
         mock_graphql_client.get_series_episodes.return_value = []
-        mock_graphql_client.get_collection_info.return_value = None  # No info for empty series
+        mock_graphql_client.get_collection_info.return_value = (
+            None  # No info for empty series
+        )
 
         result = runner.invoke(app, ["list-episodes", "empty-series"])
 
@@ -118,7 +124,9 @@ class TestListEpisodesCommand:
 class TestCheckNewCommand:
     """Test check-new CLI command."""
 
-    def test_check_new_displays_latest_episode(self, mock_graphql_client, mock_cookie_file):
+    def test_check_new_displays_latest_episode(
+        self, mock_graphql_client, mock_cookie_file
+    ):
         """Test that check-new displays latest episode info."""
         mock_graphql_client.get_latest_episode.return_value = {
             "title": "C4 E007 | On the Scent",
@@ -148,14 +156,24 @@ class TestCheckNewCommand:
 class TestBatchDownloadCommand:
     """Test batch-download CLI command."""
 
-    @patch('src.beacon_dl.main.BeaconDownloader')
+    @patch("src.beacon_dl.main.BeaconDownloader")
     def test_batch_download_all_episodes(
         self, mock_downloader, mock_graphql_client, mock_cookie_file
     ):
         """Test batch downloading all episodes."""
         mock_graphql_client.get_series_episodes.return_value = [
-            {"slug": "ep1", "title": "Episode 1", "seasonNumber": 1, "episodeNumber": 1},
-            {"slug": "ep2", "title": "Episode 2", "seasonNumber": 1, "episodeNumber": 2},
+            {
+                "slug": "ep1",
+                "title": "Episode 1",
+                "seasonNumber": 1,
+                "episodeNumber": 1,
+            },
+            {
+                "slug": "ep2",
+                "title": "Episode 2",
+                "seasonNumber": 1,
+                "episodeNumber": 2,
+            },
         ]
 
         result = runner.invoke(app, ["batch-download", "test-series"])
@@ -164,18 +182,35 @@ class TestBatchDownloadCommand:
         assert "Found 2 episodes" in result.stdout
         assert mock_downloader.return_value.download_url.call_count == 2
 
-    @patch('src.beacon_dl.main.BeaconDownloader')
+    @patch("src.beacon_dl.main.BeaconDownloader")
     def test_batch_download_with_range(
         self, mock_downloader, mock_graphql_client, mock_cookie_file
     ):
         """Test batch download with episode range."""
         mock_graphql_client.get_series_episodes.return_value = [
-            {"slug": "ep1", "title": "Episode 1", "seasonNumber": 1, "episodeNumber": 1},
-            {"slug": "ep2", "title": "Episode 2", "seasonNumber": 1, "episodeNumber": 2},
-            {"slug": "ep3", "title": "Episode 3", "seasonNumber": 1, "episodeNumber": 3},
+            {
+                "slug": "ep1",
+                "title": "Episode 1",
+                "seasonNumber": 1,
+                "episodeNumber": 1,
+            },
+            {
+                "slug": "ep2",
+                "title": "Episode 2",
+                "seasonNumber": 1,
+                "episodeNumber": 2,
+            },
+            {
+                "slug": "ep3",
+                "title": "Episode 3",
+                "seasonNumber": 1,
+                "episodeNumber": 3,
+            },
         ]
 
-        result = runner.invoke(app, ["batch-download", "test-series", "--start", "1", "--end", "2"])
+        result = runner.invoke(
+            app, ["batch-download", "test-series", "--start", "1", "--end", "2"]
+        )
 
         assert result.exit_code == 0
         assert mock_downloader.return_value.download_url.call_count == 2
@@ -184,7 +219,7 @@ class TestBatchDownloadCommand:
 class TestDownloadCommand:
     """Test main download command."""
 
-    @patch('src.beacon_dl.main.BeaconDownloader')
+    @patch("src.beacon_dl.main.BeaconDownloader")
     def test_download_without_url_fetches_latest(
         self, mock_downloader, mock_graphql_client, mock_cookie_file
     ):
@@ -201,7 +236,7 @@ class TestDownloadCommand:
         mock_graphql_client.get_latest_episode.assert_called_once()
         mock_downloader.return_value.download_url.assert_called_once()
 
-    @patch('src.beacon_dl.main.BeaconDownloader')
+    @patch("src.beacon_dl.main.BeaconDownloader")
     def test_download_with_url(self, mock_downloader, mock_cookie_file):
         """Test download with specific URL."""
         url = "https://beacon.tv/content/test-episode"
@@ -212,8 +247,10 @@ class TestDownloadCommand:
         assert result.exit_code == 0
         mock_downloader.return_value.download_url.assert_called_once_with(url)
 
-    @patch('src.beacon_dl.main.BeaconDownloader')
-    def test_download_with_series_option(self, mock_downloader, mock_graphql_client, mock_cookie_file):
+    @patch("src.beacon_dl.main.BeaconDownloader")
+    def test_download_with_series_option(
+        self, mock_downloader, mock_graphql_client, mock_cookie_file
+    ):
         """Test download with series option."""
         mock_graphql_client.get_latest_episode.return_value = {
             "slug": "test-ep",
@@ -248,11 +285,9 @@ class TestListSeriesAdditional:
 
     def test_list_series_with_no_auth(self):
         """Test list-series fails gracefully without auth."""
-        with patch('src.beacon_dl.main.get_cookie_file') as mock:
+        with patch("src.beacon_dl.main.get_cookie_file") as mock:
             mock.return_value = None
 
             result = runner.invoke(app, ["list-series"])
 
             assert result.exit_code == 1
-
-

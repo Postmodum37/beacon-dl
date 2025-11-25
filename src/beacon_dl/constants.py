@@ -4,33 +4,72 @@ Centralizes magic strings, mappings, and configuration constants.
 """
 
 # Language to ISO 639-2 code mapping
+# Comprehensive mapping supporting full names, ISO codes, and native names
+# Uses ISO 639-2/T (terminological) codes where different from bibliographic codes
 LANGUAGE_TO_ISO_MAP = {
+    # English
     "english": "eng",
     "en": "eng",
+    # Spanish
     "spanish": "spa",
     "es": "spa",
     "español": "spa",
+    # French (ISO 639-2/T: fre, ISO 639-2/B: fra)
     "french": "fre",
     "fr": "fre",
     "français": "fre",
+    # Italian
     "italian": "ita",
     "it": "ita",
     "italiano": "ita",
+    # Portuguese
     "portuguese": "por",
     "pt": "por",
     "português": "por",
+    # German (ISO 639-2/T: ger, ISO 639-2/B: deu)
     "german": "ger",
     "de": "ger",
     "deutsch": "ger",
+    # Japanese
     "japanese": "jpn",
     "ja": "jpn",
     "日本語": "jpn",
+    # Korean
     "korean": "kor",
     "ko": "kor",
     "한국어": "kor",
+    # Chinese
     "chinese": "chi",
     "zh": "chi",
     "中文": "chi",
+    # Russian
+    "russian": "rus",
+    "ru": "rus",
+    "русский": "rus",
+    # Dutch
+    "dutch": "nld",
+    "nl": "nld",
+    "nederlands": "nld",
+    # Polish
+    "polish": "pol",
+    "pl": "pol",
+    "polski": "pol",
+    # Swedish
+    "swedish": "swe",
+    "sv": "swe",
+    "svenska": "swe",
+    # Norwegian
+    "norwegian": "nor",
+    "no": "nor",
+    "norsk": "nor",
+    # Danish
+    "danish": "dan",
+    "da": "dan",
+    "dansk": "dan",
+    # Finnish
+    "finnish": "fin",
+    "fi": "fin",
+    "suomi": "fin",
 }
 
 # Supported container formats
@@ -88,10 +127,17 @@ ALPHANUM_PATTERN = r"^[a-zA-Z0-9._-]+$"
 SECURE_FILE_PERMISSIONS = 0o600  # -rw------- (owner read/write only)
 SECURE_DIR_PERMISSIONS = 0o700  # drwx------ (owner full access only)
 
-# Timeouts (in seconds)
+# Timeouts (in seconds for HTTP, milliseconds for Playwright)
 DEFAULT_HTTP_TIMEOUT = 10
-PLAYWRIGHT_PAGE_TIMEOUT = 30000  # milliseconds
-PLAYWRIGHT_NAVIGATION_TIMEOUT = 30000  # milliseconds
+
+# Playwright timeouts (milliseconds)
+PLAYWRIGHT_PAGE_TIMEOUT = 30000  # Page navigation timeout
+PLAYWRIGHT_NAVIGATION_TIMEOUT = 30000  # URL navigation timeout
+PLAYWRIGHT_SELECTOR_TIMEOUT = 10000  # Wait for selector timeout
+PLAYWRIGHT_NETWORKIDLE_TIMEOUT = 10000  # Wait for network idle
+PLAYWRIGHT_SSO_TIMEOUT = 15000  # SSO completion timeout
+PLAYWRIGHT_CLICK_TIMEOUT = 5000  # Button click timeout
+PLAYWRIGHT_BANNER_TIMEOUT = 2000  # Cookie banner dismiss timeout
 
 # User agents
 DEFAULT_USER_AGENT = (

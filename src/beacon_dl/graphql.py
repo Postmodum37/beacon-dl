@@ -26,13 +26,15 @@ Content Types:
     - livestream: Live streaming content
 """
 
-from pathlib import Path
-from typing import Optional, Dict, Any, List
-import http.cookiejar
 import re
+from pathlib import Path
+from typing import Any
 
 import httpx
 from rich.console import Console
+
+from .exceptions import GraphQLError, ValidationError
+from .utils import load_cookies
 
 console = Console()
 
@@ -56,25 +58,25 @@ def validate_slug(slug: str, field_name: str = "slug") -> str:
         The validated slug
 
     Raises:
-        ValueError: If slug contains invalid characters
+        ValidationError: If slug is empty, contains invalid characters, or is too long
 
     Security:
         Only allows alphanumeric characters, hyphens, and underscores.
         Prevents GraphQL injection attacks via malicious slugs.
     """
     if not slug:
-        raise ValueError(f"{field_name} cannot be empty")
+        raise ValidationError(f"{field_name} cannot be empty")
 
     # Only allow alphanumeric, hyphens, and underscores
-    if not re.match(r'^[a-zA-Z0-9_-]+$', slug):
-        raise ValueError(
+    if not re.match(r"^[a-zA-Z0-9_-]+$", slug):
+        raise ValidationError(
             f"Invalid {field_name}: '{slug}'. "
             f"Only alphanumeric characters, hyphens, and underscores are allowed."
         )
 
     # Prevent excessively long slugs (DoS protection)
     if len(slug) > 200:
-        raise ValueError(f"{field_name} too long (max 200 characters)")
+        raise ValidationError(f"{field_name} too long (max 200 characters)")
 
     return slug
 
@@ -86,16 +88,18 @@ class BeaconGraphQL:
     listings using the beacon.tv GraphQL API. Authenticates using cookies from
     a Netscape HTTP Cookie File.
 
+    Supports context manager protocol for proper resource cleanup.
+
     Example:
-        >>> client = BeaconGraphQL(cookie_file="beacon_cookies.txt")
-        >>> latest = client.get_latest_episode("campaign-4")
-        >>> print(latest["title"])
+        >>> with BeaconGraphQL(cookie_file="beacon_cookies.txt") as client:
+        ...     latest = client.get_latest_episode("campaign-4")
+        ...     print(latest["title"])
         'C4 E007 | On the Scent'
     """
 
     # Known collection slugs to IDs (cached for performance)
     # Discovered via GraphQL introspection on 2025-11-24
-    COLLECTION_CACHE: Dict[str, str] = {
+    COLLECTION_CACHE: dict[str, str] = {
         "4-sided-dive": "65b254ac78f89be87b4dbeb8",
         "age-of-umbra": "6827b1bed18cf5fdafa5e57e",
         "all-work-no-play": "66067c5dc1ffa829c389b7aa",
@@ -128,32 +132,29 @@ class BeaconGraphQL:
             cookie_file: Path to Netscape HTTP Cookie File containing beacon-session cookie
         """
         self.endpoint = "https://beacon.tv/api/graphql"
-        self.cookies = self._load_cookies(Path(cookie_file))
+        self.cookies = load_cookies(Path(cookie_file))
+        self.client = httpx.Client(
+            timeout=DEFAULT_TIMEOUT,
+            transport=DEFAULT_TRANSPORT,
+            cookies=self.cookies,
+        )
 
-    def _load_cookies(self, cookie_file: Path) -> Dict[str, str]:
-        """Load cookies from Netscape HTTP Cookie File.
+    def __enter__(self) -> "BeaconGraphQL":
+        """Enter context manager."""
+        return self
 
-        Args:
-            cookie_file: Path to cookie file
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Exit context manager, closing HTTP client."""
+        self.close()
 
-        Returns:
-            Dictionary of cookie name -> value pairs
-        """
-        jar = http.cookiejar.MozillaCookieJar(str(cookie_file))
-        try:
-            jar.load(ignore_discard=True, ignore_expires=True)
-        except Exception as e:
-            console.print(f"[yellow]⚠️  Could not load cookies: {e}[/yellow]")
-            return {}
+    def close(self) -> None:
+        """Close the HTTP client and release resources."""
+        if self.client:
+            self.client.close()
 
-        # Convert cookie jar to dict
-        cookies = {}
-        for cookie in jar:
-            cookies[cookie.name] = cookie.value
-
-        return cookies
-
-    def _query(self, query: str, variables: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _query(
+        self, query: str, variables: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Execute a GraphQL query.
 
         Args:
@@ -164,31 +165,32 @@ class BeaconGraphQL:
             GraphQL response data
 
         Raises:
-            httpx.HTTPStatusError: If the request fails
+            GraphQLError: If the query fails or returns errors
         """
         payload = {"query": query}
         if variables:
             payload["variables"] = variables
 
-        with httpx.Client(
-            timeout=DEFAULT_TIMEOUT,
-            transport=DEFAULT_TRANSPORT,
-            cookies=self.cookies,
-        ) as client:
-            response = client.post(
+        try:
+            response = self.client.post(
                 self.endpoint,
                 json=payload,
                 headers={"Content-Type": "application/json"},
             )
             response.raise_for_status()
-
             data = response.json()
+        except httpx.HTTPStatusError as e:
+            raise GraphQLError(
+                f"GraphQL request failed (HTTP {e.response.status_code})"
+            ) from e
+        except httpx.RequestError as e:
+            raise GraphQLError(f"GraphQL request failed: {e}") from e
 
         # Check for GraphQL errors
         if "errors" in data:
             errors = data["errors"]
             error_msgs = [e.get("message", str(e)) for e in errors]
-            raise ValueError(f"GraphQL errors: {', '.join(error_msgs)}")
+            raise GraphQLError(f"GraphQL errors: {', '.join(error_msgs)}")
 
         return data
 
@@ -204,7 +206,8 @@ class BeaconGraphQL:
             Collection ID
 
         Raises:
-            ValueError: If collection not found or slug invalid
+            ValidationError: If slug is invalid
+            GraphQLError: If collection not found or query fails
         """
         # Validate slug to prevent GraphQL injection
         validated_slug = validate_slug(collection_slug, "collection_slug")
@@ -230,7 +233,7 @@ class BeaconGraphQL:
         docs = response.get("data", {}).get("Collections", {}).get("docs", [])
 
         if not docs:
-            raise ValueError(f"Collection not found: {collection_slug}")
+            raise GraphQLError(f"Collection not found: {collection_slug}")
 
         collection_id = docs[0]["id"]
 
@@ -239,7 +242,9 @@ class BeaconGraphQL:
 
         return collection_id
 
-    def get_latest_episode(self, collection_slug: str = "campaign-4") -> Optional[Dict[str, Any]]:
+    def get_latest_episode(
+        self, collection_slug: str = "campaign-4"
+    ) -> dict[str, Any] | None:
         """Get the latest episode from a series.
 
         Args:
@@ -262,7 +267,7 @@ class BeaconGraphQL:
         """
         try:
             collection_id = self._get_collection_id(collection_slug)
-        except ValueError as e:
+        except (ValidationError, GraphQLError) as e:
             console.print(f"[yellow]⚠️  {e}[/yellow]")
             return None
 
@@ -306,7 +311,7 @@ class BeaconGraphQL:
             console.print(f"[yellow]⚠️  GraphQL query failed: {e}[/yellow]")
             return None
 
-    def get_content_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
+    def get_content_by_slug(self, slug: str) -> dict[str, Any] | None:
         """Get content metadata by URL slug.
 
         Args:
@@ -363,11 +368,8 @@ class BeaconGraphQL:
             return None
 
     def get_series_episodes(
-        self,
-        collection_slug: str,
-        episodic_only: bool = True,
-        limit: int = 200
-    ) -> List[Dict[str, Any]]:
+        self, collection_slug: str, episodic_only: bool = True, limit: int = 200
+    ) -> list[dict[str, Any]]:
         """Get all episodes in a series.
 
         Args:
@@ -387,7 +389,7 @@ class BeaconGraphQL:
         """
         try:
             collection_id = self._get_collection_id(collection_slug)
-        except ValueError as e:
+        except (ValidationError, GraphQLError) as e:
             console.print(f"[yellow]⚠️  {e}[/yellow]")
             return []
 
@@ -431,7 +433,7 @@ class BeaconGraphQL:
             console.print(f"[yellow]⚠️  GraphQL query failed: {e}[/yellow]")
             return []
 
-    def list_collections(self, series_only: bool = True) -> List[Dict[str, Any]]:
+    def list_collections(self, series_only: bool = True) -> list[dict[str, Any]]:
         """List all available collections/series.
 
         Args:
@@ -447,7 +449,7 @@ class BeaconGraphQL:
         """
         where_clause = ""
         if series_only:
-            where_clause = 'where: { isSeries: { equals: true } }'
+            where_clause = "where: { isSeries: { equals: true } }"
 
         query = f"""
         query GetCollections {{
@@ -473,7 +475,7 @@ class BeaconGraphQL:
             console.print(f"[yellow]⚠️  GraphQL query failed: {e}[/yellow]")
             return []
 
-    def get_collection_info(self, collection_slug: str) -> Optional[Dict[str, Any]]:
+    def get_collection_info(self, collection_slug: str) -> dict[str, Any] | None:
         """Get collection/series metadata.
 
         Args:
@@ -489,7 +491,7 @@ class BeaconGraphQL:
         """
         try:
             collection_id = self._get_collection_id(collection_slug)
-        except ValueError as e:
+        except (ValidationError, GraphQLError) as e:
             console.print(f"[yellow]⚠️  {e}[/yellow]")
             return None
 
@@ -517,13 +519,13 @@ class BeaconGraphQL:
 
     def search(
         self,
-        collection_slug: Optional[str] = None,
-        content_types: Optional[List[str]] = None,
-        search_text: Optional[str] = None,
+        collection_slug: str | None = None,
+        content_types: list[str] | None = None,
+        search_text: str | None = None,
         sort: str = "-releaseDate",
         limit: int = 20,
         page: int = 1,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Search for content with flexible filters.
 
         This uses the custom `search` query endpoint which provides powerful
@@ -553,7 +555,7 @@ class BeaconGraphQL:
             try:
                 collection_id = self._get_collection_id(collection_slug)
                 args.append(f'collection: "{collection_id}"')
-            except ValueError as e:
+            except (ValidationError, GraphQLError) as e:
                 console.print(f"[yellow]⚠️  {e}[/yellow]")
                 return {"docs": [], "totalDocs": 0, "page": 1, "totalPages": 0}
 
@@ -596,12 +598,9 @@ class BeaconGraphQL:
 
         try:
             response = self._query(query)
-            return response.get("data", {}).get("search", {
-                "docs": [],
-                "totalDocs": 0,
-                "page": 1,
-                "totalPages": 0
-            })
+            return response.get("data", {}).get(
+                "search", {"docs": [], "totalDocs": 0, "page": 1, "totalPages": 0}
+            )
         except Exception as e:
             console.print(f"[yellow]⚠️  GraphQL search failed: {e}[/yellow]")
             return {"docs": [], "totalDocs": 0, "page": 1, "totalPages": 0}
@@ -610,7 +609,7 @@ class BeaconGraphQL:
         self,
         limit: int = 10,
         episodic_only: bool = False,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Get the latest content across all collections.
 
         Args:

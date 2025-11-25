@@ -20,6 +20,8 @@ dev = [
     "pytest-httpx>=0.35.0",
     "pytest-mock>=3.12.0",
     "pytest-timeout>=2.2.0",
+    "ruff>=0.11.0",
+    "pre-commit>=4.0.0",
 ]
 
 [project.scripts]
@@ -76,6 +78,51 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
+
+# Ruff linter and formatter configuration
+[tool.ruff]
+line-length = 88
+indent-width = 4
+target-version = "py310"
+
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    ".eggs",
+    "htmlcov",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "F",    # Pyflakes
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "I",    # isort
+]
+ignore = [
+    "E501",   # line-too-long (let formatter handle it)
+    "SIM117", # nested with statements (clearer for mocking in tests)
+    "SIM103", # return condition directly (explicit if/else is clearer)
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"src/beacon_dl/main.py" = ["B904"]  # typer.Exit() intentionally doesn't chain exceptions
+
+[tool.ruff.lint.isort]
+known-first-party = ["beacon_dl"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [build-system]
 requires = ["hatchling"]

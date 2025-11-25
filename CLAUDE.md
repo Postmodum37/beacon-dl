@@ -469,11 +469,29 @@ beacon-tv-downloader/
 
 **Development Setup**:
 ```bash
-# Install in editable mode
-uv pip install -e .
+# Install in editable mode with dev dependencies
+uv sync --extra dev
 
 # Install Playwright browsers
 playwright install chromium
+
+# Install pre-commit hooks
+uv run pre-commit install
+```
+
+**Linting & Formatting (Ruff)**:
+```bash
+# Check for linting issues
+uv run ruff check src/ tests/
+
+# Auto-fix issues
+uv run ruff check src/ tests/ --fix
+
+# Format code
+uv run ruff format src/ tests/
+
+# Run all pre-commit hooks manually
+uv run pre-commit run --all-files
 ```
 
 **Adding Features**:

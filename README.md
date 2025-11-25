@@ -1,209 +1,249 @@
 # BeaconTV Downloader
 
-Fully configurable script to download BeaconTV videos with all subtitle tracks, creating properly formatted video files ready for release processing. Originally designed for Critical Role, now supports any BeaconTV content with automatic metadata detection.
+Download BeaconTV videos with all subtitle tracks. Outputs properly formatted video files ready for release processing.
+
+## Installation
+
+```bash
+# Install with uv (recommended)
+uv pip install -e .
+
+# Install Playwright browser (first time only)
+playwright install chromium
+```
+
+**Requirements:** Python 3.10+, ffmpeg
+
+```bash
+brew install ffmpeg  # macOS
+```
 
 ## Quick Start
 
 ```bash
-# Episodic content
-./beacon_dl.sh https://beacon.tv/content/c4-e006-knives-and-thorns
+# Download latest episode from Campaign 4
+beacon-dl --username user@example.com --password yourpassword
 
-# One-shots and specials
-./beacon_dl.sh https://beacon.tv/content/critical-role-jester-and-fjords-wedding-live-from-radio-city-music-hall
+# Download specific episode
+beacon-dl https://beacon.tv/content/c4-e007-knives-and-thorns --username user@example.com --password yourpassword
 ```
 
-## Features
+## Commands
 
-✅ **Fully Configurable**: Every aspect customizable via environment variables
-✅ **Dynamic Metadata**: Auto-detects show name, codecs, resolution from video metadata
-✅ **Browser Auto-Detection**: Automatically finds Firefox, Zen, or Chrome profiles (macOS/Linux)
-✅ **Multi-Format Episodes**: Supports 4+ episode numbering formats (S04E06, C4 E006, 4x06, etc.)
-✅ **Universal Subtitles**: Dynamic language detection supporting 9+ languages with ISO 639-2 mapping
-✅ **All Content Types**: Handles episodic content, one-shots, and specials automatically
-✅ **Quality Options**: Configurable resolution (1080p, 720p, 4K, etc.)
-✅ **Custom Releases**: Configure release group, source type, container format
-✅ **No Re-encoding**: Direct stream copy (no quality loss)
-✅ **Smart Skip**: Detects existing downloads to avoid duplicates
-✅ **Ready for Upload-Assistant**: Outputs clean files for release creation
-✅ **Security Hardened**: Input validation, HTTPS-only, secure temp files, injection prevention
-
-## Output Examples
-
-**Default output (episodic):**
-```
-Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
-```
-
-**Default output (one-shots/specials):**
-```
-Critical.Role.Jester.and.Fjords.Wedding.Live.from.Radio.City.Music.Hall.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
-```
-
-**Custom release group:**
-```bash
-RELEASE_GROUP="MyGroup" ./beacon_dl.sh <url>
-# Output: Critical.Role.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-MyGroup.mkv
-```
-
-**Different resolution:**
-```bash
-PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
-# Output: Critical.Role.S04E06.Knives.and.Thorns.720p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
-```
-
-**All components are automatically detected from metadata or configurable via environment variables.**
-
-## Requirements
+### Download (default)
 
 ```bash
-# Required
-brew install yt-dlp jq ffmpeg
+# Latest episode from Campaign 4
+beacon-dl
 
-# For release creation (use Upload-Assistant separately)
-# https://github.com/Audionut/Upload-Assistant
+# Latest from a different series
+beacon-dl --series exu-calamity
+
+# Specific episode by URL
+beacon-dl https://beacon.tv/content/c4-e007-knives-and-thorns
+
+# With debug output
+beacon-dl --debug
 ```
 
-## Security
+### List Series
 
-- **HTTPS Required**: Only HTTPS URLs accepted for security
-- **Input Validation**: Environment variables validated (alphanumeric, dots, dashes, underscores only)
-- **Secure Temp Files**: Random temporary directories prevent conflicts
-- **No Command Injection**: Blocks path traversal and injection attempts
+```bash
+# Show all available series on Beacon TV
+beacon-dl list-series
+```
 
-**Supported browsers**: firefox, chrome, chromium, edge, safari, brave, opera
+### List Episodes
+
+```bash
+# List all episodes in a series
+beacon-dl list-episodes campaign-4
+beacon-dl list-episodes exu-calamity
+```
+
+### Check for New Episodes
+
+```bash
+# Check latest episode in Campaign 4
+beacon-dl check-new
+
+# Check a specific series
+beacon-dl check-new --series exu-calamity
+```
+
+### Episode Info
+
+```bash
+# Show detailed info about an episode (resolutions, subtitles, metadata)
+beacon-dl info c4-e007-on-the-scent
+
+# Also accepts full URLs
+beacon-dl info https://beacon.tv/content/c4-e007-on-the-scent
+```
+
+Shows:
+- Episode metadata (title, series, duration, description)
+- All available resolutions with bitrates
+- Available subtitle languages
+- Download history status (if previously downloaded)
+
+### Batch Download
+
+```bash
+# Download all episodes from a series
+beacon-dl batch-download campaign-4
+
+# Download episodes 1-5
+beacon-dl batch-download campaign-4 --start 1 --end 5
+
+# Download from episode 10 onwards
+beacon-dl batch-download campaign-4 --start 10
+```
+
+### Download History
+
+```bash
+# Show recent downloads
+beacon-dl history
+
+# Show more entries
+beacon-dl history --limit 50
+```
+
+### Verify Downloads
+
+```bash
+# Quick verify (file size check)
+beacon-dl verify
+
+# Full verify with SHA256 checksums
+beacon-dl verify --full
+
+# Verify specific file
+beacon-dl verify "Critical.Role.S04E07.*.mkv"
+```
+
+### Clear History
+
+```bash
+# Clear download history (with confirmation)
+beacon-dl clear-history
+
+# Skip confirmation
+beacon-dl clear-history --force
+```
+
+## Authentication
+
+### Username/Password (Recommended)
+
+```bash
+# Via command line flags
+beacon-dl --username user@example.com --password yourpassword
+
+# Via environment variables
+export BEACON_USERNAME=user@example.com
+export BEACON_PASSWORD=yourpassword
+beacon-dl
+```
+
+### Browser Cookies (Fallback)
+
+```bash
+# Auto-detect browser (Firefox, Chrome)
+beacon-dl --browser firefox
+
+# Specific profile
+beacon-dl --browser "firefox:default"
+```
 
 ## Configuration
 
-All aspects of the script can be customized via environment variables. The script auto-detects metadata when possible and uses sensible defaults.
+All settings can be configured via environment variables or a `.env` file.
 
-### Browser Authentication
+### Download Settings
 
-**Auto-Detection (Recommended):**
-The script automatically detects browser profiles in this order:
-1. Zen browser (macOS)
-2. Firefox (macOS/Linux)
-3. Chrome (macOS/Linux)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RELEASE_GROUP` | Pawsty | Release group name in filename |
+| `PREFERRED_RESOLUTION` | 1080p | Download quality (720p, 1080p, 2160p) |
+| `SOURCE_TYPE` | WEB-DL | Source type in filename |
+| `CONTAINER_FORMAT` | mkv | Output format (mkv, mp4) |
 
-```bash
-# Just run the script - browser profile auto-detected
-./beacon_dl.sh <url>
-```
+### Authentication
 
-**Manual Override:**
-```bash
-# Specify custom browser profile
-BROWSER_PROFILE="firefox:~/path/to/your/profile" ./beacon_dl.sh <url>
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BEACON_USERNAME` | - | Beacon TV username |
+| `BEACON_PASSWORD` | - | Beacon TV password |
+| `BROWSER_PROFILE` | - | Browser for cookie extraction |
 
-# Use Chrome
-BROWSER_PROFILE="chrome" ./beacon_dl.sh <url>
-```
-
-### Release Customization
+### Example `.env` file
 
 ```bash
-# Custom release group (default: Pawsty)
-RELEASE_GROUP="MyGroup" ./beacon_dl.sh <url>
-
-# Source type (default: WEB-DL)
-SOURCE_TYPE="WEBRip" ./beacon_dl.sh <url>
-
-# Container format (default: mkv)
-CONTAINER_FORMAT="mp4" ./beacon_dl.sh <url>
+BEACON_USERNAME=user@example.com
+BEACON_PASSWORD=yourpassword
+RELEASE_GROUP=MyGroup
+PREFERRED_RESOLUTION=1080p
 ```
 
-### Quality Settings
+### Custom Release Examples
 
 ```bash
-# Preferred resolution (default: 1080p)
-PREFERRED_RESOLUTION="720p" ./beacon_dl.sh <url>
-PREFERRED_RESOLUTION="2160p" ./beacon_dl.sh <url>  # 4K
+# Custom release group
+RELEASE_GROUP="MyGroup" beacon-dl
+
+# 720p quality
+PREFERRED_RESOLUTION="720p" beacon-dl
+
+# MP4 container
+CONTAINER_FORMAT="mp4" beacon-dl
+
+# Combined
+RELEASE_GROUP="MyGroup" PREFERRED_RESOLUTION="720p" beacon-dl
 ```
 
-### Metadata Fallbacks
+## Output Format
 
-Defaults if metadata extraction fails: 1080p, H.264, AAC 2.0
+**Episodic content:**
+```
+Critical.Role.S04E07.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
+```
 
-### Combined Example
+**One-shots/specials:**
+```
+Critical.Role.Jester.and.Fjords.Wedding.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
+```
+
+## Docker
 
 ```bash
-# Custom release with 720p
-RELEASE_GROUP="CustomGroup" \
-PREFERRED_RESOLUTION="720p" \
-SOURCE_TYPE="WEBRip" \
-./beacon_dl.sh <url>
+# Build
+docker build -t beacon-dl .
+
+# Download latest episode
+docker run --rm \
+  -e BEACON_USERNAME=user@example.com \
+  -e BEACON_PASSWORD=yourpassword \
+  -v $(pwd)/downloads:/app \
+  beacon-dl
+
+# Scheduled downloads (cron)
+0 2 * * * docker run --rm -e BEACON_USERNAME=... -e BEACON_PASSWORD=... -v /downloads:/app beacon-dl
 ```
-
-## Technical Details
-
-**Auto-detected from metadata**: Show name, resolution, video/audio codecs, audio channels, subtitles
-
-**Typical specs**: H.264 1080p 30fps, AAC 2.0, MKV container, no re-encoding
-
-**Episode formats supported**: `C4 E006 | Title`, `S04E06 - Title`, `S04E06 Title`, `4x06 - Title`
-
-Non-episodic content handled automatically.
-
-## Creating Releases
-
-This script outputs MKV files ready for Upload-Assistant processing. Use Upload-Assistant to create complete release packages (NFO, MediaInfo, samples, screenshots, torrents).
-
-```bash
-# After downloading the MKV
-python3 upload.py /path/to/Critical.Role.*.mkv
-```
-
-See [Upload-Assistant documentation](https://github.com/Audionut/Upload-Assistant) for details.
 
 ## Troubleshooting
 
 ### Subtitle downloads fail
+Unblock `assets-jpcust.jwpsrv.com` in your DNS blocker (Pi-hole).
 
-Check if your DNS blocker (Pi-hole) is blocking `assets-jpcust.jwpsrv.com`. Whitelist this domain.
+### Authentication errors
+Verify credentials are correct. Try `--debug` for verbose output.
 
-### Browser cookies expired
-
-Log into BeaconTV in your browser, then try again. The script will use the updated cookies automatically.
-
-### Browser profile not detected
-
-Set `BROWSER_PROFILE` manually if auto-detection fails:
-```bash
-# Find profile: ls ~/Library/Application\ Support/Firefox/Profiles/  (macOS)
-BROWSER_PROFILE="firefox:~/path/to/profile" ./beacon_dl.sh <url>
-BROWSER_PROFILE="firefox" ./beacon_dl.sh <url>  # Use default
-```
-
-### Invalid characters error
-
-Only alphanumeric, dots (`.`), dashes (`-`), and underscores (`_`) allowed in environment variables:
-
-```bash
-# Wrong: RELEASE_GROUP="../test"
-# Right: RELEASE_GROUP="MyGroup-v2.0"
-```
-
-### HTTP URL rejected
-
-HTTPS required for security. Use `https://` not `http://`.
-
-### Wrong show name or metadata
-
-The script automatically extracts show name from metadata. If incorrect, you can manually rename the file after download, or edit the show name extraction logic in the script (search for `.series // .uploader`).
-
-### Custom filename format needed
-
-All filename components are configurable:
-- Release group: `RELEASE_GROUP="YourGroup"`
-- Source type: `SOURCE_TYPE="WEBRip"`
-- Container: `CONTAINER_FORMAT="mp4"`
-
-See the Configuration section for all options.
-
-### Multiple episode formats
-
-The script supports 4+ episode numbering formats automatically. Non-episodic content (one-shots, specials) is detected and formatted without season/episode numbers.
+### Playwright not installed
+Run `playwright install chromium` after installing the package.
 
 ## See Also
 
-- [CLAUDE.md](CLAUDE.md) - Detailed technical documentation
+- [CLAUDE.md](CLAUDE.md) - Technical documentation
 - [Upload-Assistant](https://github.com/Audionut/Upload-Assistant) - For creating release packages

@@ -1,12 +1,41 @@
 """Utility functions for beacon-dl.
 
 This module provides helper functions for filename sanitization,
-language mapping, and browser profile detection.
+language mapping, browser profile detection, and cookie loading.
 """
 
+import http.cookiejar
 import re
 from pathlib import Path
-from typing import Optional
+
+from rich.console import Console
+
+from .constants import LANGUAGE_TO_ISO_MAP
+
+console = Console()
+
+
+def load_cookies(cookie_file: Path) -> dict[str, str]:
+    """Load cookies from Netscape format file.
+
+    Args:
+        cookie_file: Path to cookie file
+
+    Returns:
+        Dictionary of cookie name -> value
+    """
+    jar = http.cookiejar.MozillaCookieJar(str(cookie_file))
+    try:
+        jar.load(ignore_discard=True, ignore_expires=True)
+    except Exception as e:
+        console.print(f"[yellow]⚠️  Could not load cookies: {e}[/yellow]")
+        return {}
+
+    cookies = {}
+    for cookie in jar:
+        cookies[cookie.name] = cookie.value
+
+    return cookies
 
 
 def sanitize_filename(name: str) -> str:
@@ -45,11 +74,13 @@ def sanitize_filename(name: str) -> str:
 def map_language_to_iso(lang: str) -> str:
     """Map language name to ISO 639-2 code.
 
+    Uses the centralized LANGUAGE_TO_ISO_MAP from constants.py.
+
     Args:
         lang: Language name or code
 
     Returns:
-        ISO 639-2 three-letter language code
+        ISO 639-2 three-letter language code, or 'und' (undefined) if not found
 
     Example:
         >>> map_language_to_iso("English")
@@ -57,45 +88,10 @@ def map_language_to_iso(lang: str) -> str:
         >>> map_language_to_iso("español")
         'spa'
     """
-    lang_lower = lang.lower()
-    mapping = {
-        "english": "eng",
-        "en": "eng",
-        "spanish": "spa",
-        "es": "spa",
-        "español": "spa",
-        "french": "fre",
-        "fr": "fre",
-        "français": "fre",
-        "italian": "ita",
-        "it": "ita",
-        "italiano": "ita",
-        "portuguese": "por",
-        "pt": "por",
-        "português": "por",
-        "german": "ger",
-        "de": "ger",
-        "deutsch": "ger",
-        "japanese": "jpn",
-        "ja": "jpn",
-        "日本語": "jpn",
-        "korean": "kor",
-        "ko": "kor",
-        "한국어": "kor",
-        "chinese": "chi",
-        "zh": "chi",
-        "中文": "chi",
-        "russian": "rus",
-        "ru": "rus",
-        "dutch": "nld",
-        "nl": "nld",
-        "polish": "pol",
-        "pl": "pol",
-    }
-    return mapping.get(lang_lower, "und")
+    return LANGUAGE_TO_ISO_MAP.get(lang.lower(), "und")
 
 
-def detect_browser_profile() -> Optional[str]:
+def detect_browser_profile() -> str | None:
     """Auto-detect browser profile path.
 
     Checks for browser profiles in order of preference:
@@ -126,7 +122,9 @@ def detect_browser_profile() -> Optional[str]:
     # Check for Firefox on macOS
     firefox_mac = home / "Library/Application Support/Firefox/Profiles"
     if firefox_mac.exists():
-        profiles = list(firefox_mac.glob("*.default*")) + list(firefox_mac.glob("*.Default*"))
+        profiles = list(firefox_mac.glob("*.default*")) + list(
+            firefox_mac.glob("*.Default*")
+        )
         if profiles:
             profiles.sort(key=lambda p: p.stat().st_mtime, reverse=True)
             return f"firefox:{profiles[0]}"

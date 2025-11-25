@@ -1,9 +1,14 @@
 """Tests for utility functions."""
 
-import pytest
-from unittest.mock import patch, MagicMock, Mock
 from pathlib import Path
-from src.beacon_dl.utils import sanitize_filename, map_language_to_iso, detect_browser_profile
+from unittest.mock import MagicMock, patch
+
+from src.beacon_dl.utils import (
+    detect_browser_profile,
+    load_cookies,
+    map_language_to_iso,
+    sanitize_filename,
+)
 
 
 class TestFilenameSanitization:
@@ -117,13 +122,17 @@ class TestBrowserDetection:
 
     def test_detect_browser_profile_zen_macos(self):
         """Test Zen browser detection on macOS."""
-        with patch.object(Path, 'home', return_value=Path('/Users/test')):
-            with patch.object(Path, 'exists') as mock_exists:
-                with patch.object(Path, 'glob') as mock_glob:
+        with patch.object(Path, "home", return_value=Path("/Users/test")):
+            with patch.object(Path, "exists") as mock_exists:
+                with patch.object(Path, "glob") as mock_glob:
                     # Zen exists, Firefox doesn't
                     def exists_side_effect(self=None):
-                        path_str = str(self) if hasattr(self, '__str__') else str(mock_exists.call_args)
-                        if 'zen' in path_str.lower():
+                        path_str = (
+                            str(self)
+                            if hasattr(self, "__str__")
+                            else str(mock_exists.call_args)
+                        )
+                        if "zen" in path_str.lower():
                             return True
                         return False
 
@@ -142,11 +151,12 @@ class TestBrowserDetection:
 
     def test_detect_browser_profile_firefox_fallback(self):
         """Test Firefox fallback when Zen not available."""
-        with patch.object(Path, 'home', return_value=Path('/Users/test')):
-            with patch.object(Path, 'exists') as mock_exists:
-                with patch.object(Path, 'glob') as mock_glob:
+        with patch.object(Path, "home", return_value=Path("/Users/test")):
+            with patch.object(Path, "exists") as mock_exists:
+                with patch.object(Path, "glob") as mock_glob:
                     # Only Firefox exists (not Zen)
                     call_count = [0]
+
                     def exists_side_effect(self=None):
                         call_count[0] += 1
                         # First call is Zen (no), second is Firefox (yes)
@@ -167,11 +177,12 @@ class TestBrowserDetection:
 
     def test_detect_browser_profile_chrome_fallback(self):
         """Test Chrome fallback when Firefox not available."""
-        with patch.object(Path, 'home', return_value=Path('/Users/test')):
-            with patch.object(Path, 'exists') as mock_exists:
-                with patch.object(Path, 'glob') as mock_glob:
+        with patch.object(Path, "home", return_value=Path("/Users/test")):
+            with patch.object(Path, "exists") as mock_exists:
+                with patch.object(Path, "glob") as mock_glob:
                     # Only Chrome exists
                     call_count = [0]
+
                     def exists_side_effect(self=None):
                         call_count[0] += 1
                         # Zen: no, Firefox macOS: no, Firefox Linux: no, Chrome macOS: yes
@@ -189,9 +200,9 @@ class TestBrowserDetection:
 
     def test_detect_browser_profile_none_found(self):
         """Test when no browser is found."""
-        with patch.object(Path, 'home', return_value=Path('/Users/test')):
-            with patch.object(Path, 'exists', return_value=False):
-                with patch.object(Path, 'glob', return_value=[]):
+        with patch.object(Path, "home", return_value=Path("/Users/test")):
+            with patch.object(Path, "exists", return_value=False):
+                with patch.object(Path, "glob", return_value=[]):
                     result = detect_browser_profile()
                     assert result is None
 
@@ -228,32 +239,18 @@ class TestConstants:
     def test_import_constants(self):
         """Test constants can be imported."""
         from src.beacon_dl.constants import (
-            LANGUAGE_TO_ISO_MAP,
-            SUPPORTED_CONTAINER_FORMATS,
-            VIDEO_CODECS,
-            AUDIO_CODECS,
-            DEFAULT_RELEASE_GROUP,
-            DEFAULT_SOURCE_TYPE,
             DEFAULT_CONTAINER_FORMAT,
+            DEFAULT_RELEASE_GROUP,
             DEFAULT_RESOLUTION,
-            DEFAULT_AUDIO_CODEC,
-            DEFAULT_AUDIO_CHANNELS,
-            DEFAULT_VIDEO_CODEC,
-            BEACON_TV_API_ENDPOINT,
-            BEACON_TV_LOGIN_URL,
-            BEACON_TV_BASE_URL,
-            BEACON_TV_CONTENT_URL,
             KNOWN_COLLECTIONS,
-            SLUG_PATTERN,
-            RESOLUTION_PATTERN,
-            AUDIO_CHANNELS_PATTERN,
-            ALPHANUM_PATTERN,
-            SECURE_FILE_PERMISSIONS,
-            SECURE_DIR_PERMISSIONS,
-            DEFAULT_HTTP_TIMEOUT,
-            PLAYWRIGHT_PAGE_TIMEOUT,
+            PLAYWRIGHT_BANNER_TIMEOUT,
+            PLAYWRIGHT_CLICK_TIMEOUT,
             PLAYWRIGHT_NAVIGATION_TIMEOUT,
-            DEFAULT_USER_AGENT,
+            PLAYWRIGHT_NETWORKIDLE_TIMEOUT,
+            PLAYWRIGHT_PAGE_TIMEOUT,
+            PLAYWRIGHT_SELECTOR_TIMEOUT,
+            PLAYWRIGHT_SSO_TIMEOUT,
+            SECURE_FILE_PERMISSIONS,
         )
 
         # Verify some key values
@@ -262,6 +259,15 @@ class TestConstants:
         assert DEFAULT_CONTAINER_FORMAT == "mkv"
         assert "campaign-4" in KNOWN_COLLECTIONS
         assert SECURE_FILE_PERMISSIONS == 0o600
+
+        # Verify Playwright timeouts are in milliseconds and reasonable
+        assert PLAYWRIGHT_PAGE_TIMEOUT == 30000  # 30 seconds
+        assert PLAYWRIGHT_NAVIGATION_TIMEOUT == 30000
+        assert PLAYWRIGHT_SELECTOR_TIMEOUT == 10000  # 10 seconds
+        assert PLAYWRIGHT_NETWORKIDLE_TIMEOUT == 10000
+        assert PLAYWRIGHT_SSO_TIMEOUT == 15000  # 15 seconds
+        assert PLAYWRIGHT_CLICK_TIMEOUT == 5000  # 5 seconds
+        assert PLAYWRIGHT_BANNER_TIMEOUT == 2000  # 2 seconds
 
     def test_language_map_completeness(self):
         """Test language map has expected entries."""
@@ -282,7 +288,7 @@ class TestConstants:
 
     def test_codec_mappings(self):
         """Test codec mappings."""
-        from src.beacon_dl.constants import VIDEO_CODECS, AUDIO_CODECS
+        from src.beacon_dl.constants import AUDIO_CODECS, VIDEO_CODECS
 
         assert VIDEO_CODECS["h264"] == "H.264"
         assert VIDEO_CODECS["hevc"] == "H.265"
@@ -310,3 +316,65 @@ class TestLanguageMappingAdditional:
         assert map_language_to_iso("italiano") == "ita"
         assert map_language_to_iso("deutsch") == "ger"
         assert map_language_to_iso("português") == "por"
+
+
+class TestLoadCookies:
+    """Tests for cookie loading utility."""
+
+    def test_load_cookies_valid_file(self, tmp_path):
+        """Test loading cookies from a valid Netscape cookie file."""
+        cookie_file = tmp_path / "cookies.txt"
+        cookie_file.write_text("""# Netscape HTTP Cookie File
+.beacon.tv\tTRUE\t/\tTRUE\t1735689600\tbeacon-session\tabc123
+.beacon.tv\tTRUE\t/\tFALSE\t0\tother_cookie\txyz789
+""")
+
+        cookies = load_cookies(cookie_file)
+
+        assert "beacon-session" in cookies
+        assert cookies["beacon-session"] == "abc123"
+        assert "other_cookie" in cookies
+        assert cookies["other_cookie"] == "xyz789"
+
+    def test_load_cookies_empty_file(self, tmp_path):
+        """Test loading from an empty cookie file."""
+        cookie_file = tmp_path / "cookies.txt"
+        cookie_file.write_text("# Netscape HTTP Cookie File\n")
+
+        cookies = load_cookies(cookie_file)
+
+        assert cookies == {}
+
+    def test_load_cookies_file_not_found(self, tmp_path):
+        """Test loading from non-existent file returns empty dict."""
+        cookie_file = tmp_path / "nonexistent.txt"
+
+        cookies = load_cookies(cookie_file)
+
+        assert cookies == {}
+
+    def test_load_cookies_invalid_format(self, tmp_path):
+        """Test loading from file with invalid format returns empty dict."""
+        cookie_file = tmp_path / "cookies.txt"
+        cookie_file.write_text("this is not a valid cookie file\nrandom content")
+
+        cookies = load_cookies(cookie_file)
+
+        # Should return empty dict on parse error
+        assert cookies == {}
+
+    def test_load_cookies_multiple_domains(self, tmp_path):
+        """Test loading cookies from multiple domains."""
+        cookie_file = tmp_path / "cookies.txt"
+        cookie_file.write_text("""# Netscape HTTP Cookie File
+.beacon.tv\tTRUE\t/\tTRUE\t1735689600\tcookie1\tvalue1
+.members.beacon.tv\tTRUE\t/\tTRUE\t1735689600\tcookie2\tvalue2
+.example.com\tTRUE\t/\tFALSE\t0\tcookie3\tvalue3
+""")
+
+        cookies = load_cookies(cookie_file)
+
+        assert len(cookies) == 3
+        assert cookies["cookie1"] == "value1"
+        assert cookies["cookie2"] == "value2"
+        assert cookies["cookie3"] == "value3"
