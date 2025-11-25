@@ -33,7 +33,6 @@ def default_callback(ctx: typer.Context) -> None:
             url=None,
             username=None,
             password=None,
-            browser=None,
             series=None,
             debug=False,
         )
@@ -42,14 +41,12 @@ def default_callback(ctx: typer.Context) -> None:
 def get_authenticated_cookie_file(
     username: str | None = None,
     password: str | None = None,
-    browser: str | None = None,
 ) -> Path:
     """Get authenticated cookie file, prompting for login if needed.
 
     Args:
         username: Optional username override
         password: Optional password override
-        browser: Optional browser profile override
 
     Returns:
         Path to cookie file
@@ -62,8 +59,6 @@ def get_authenticated_cookie_file(
         settings.beacon_username = username
     if password:
         settings.beacon_password = password
-    if browser:
-        settings.browser_profile = browser
 
     cookie_file = get_cookie_file()
 
@@ -82,9 +77,6 @@ def download(
     ),
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
-    browser: str | None = typer.Option(
-        None, help="Browser profile to use (e.g. firefox:default)"
-    ),
     series: str | None = typer.Option(
         None, help="Series slug to fetch latest episode from (default: campaign-4)"
     ),
@@ -114,7 +106,7 @@ def download(
         console.print("[bold blue]Beacon TV Downloader[/bold blue]")
 
         # Get authenticated cookie file
-        cookie_file = get_authenticated_cookie_file(username, password, browser)
+        cookie_file = get_authenticated_cookie_file(username, password)
 
         # If no URL provided, fetch latest episode
         if not url:
@@ -157,7 +149,6 @@ def download(
 def list_series(
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
-    browser: str | None = typer.Option(None, help="Browser profile to use"),
 ) -> None:
     """
     List all available series on Beacon TV.
@@ -165,7 +156,7 @@ def list_series(
     try:
         console.print("[bold blue]Available Series on Beacon TV[/bold blue]\n")
 
-        cookie_file = get_authenticated_cookie_file(username, password, browser)
+        cookie_file = get_authenticated_cookie_file(username, password)
 
         client = BeaconGraphQL(cookie_file)
         collections = client.list_collections(series_only=True)
@@ -201,7 +192,6 @@ def list_episodes(
     series: str = typer.Argument(..., help="Series slug (e.g., campaign-4)"),
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
-    browser: str | None = typer.Option(None, help="Browser profile to use"),
 ) -> None:
     """
     List all episodes in a series.
@@ -209,7 +199,7 @@ def list_episodes(
     Example: beacon-dl list-episodes campaign-4
     """
     try:
-        cookie_file = get_authenticated_cookie_file(username, password, browser)
+        cookie_file = get_authenticated_cookie_file(username, password)
 
         client = BeaconGraphQL(cookie_file)
 
@@ -272,7 +262,6 @@ def check_new(
     ),
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
-    browser: str | None = typer.Option(None, help="Browser profile to use"),
 ) -> None:
     """
     Check for new episodes in a series.
@@ -282,7 +271,7 @@ def check_new(
     try:
         console.print(f"[blue]Checking for new episodes in {series}...[/blue]")
 
-        cookie_file = get_authenticated_cookie_file(username, password, browser)
+        cookie_file = get_authenticated_cookie_file(username, password)
 
         client = BeaconGraphQL(cookie_file)
         latest = client.get_latest_episode(series)
@@ -332,7 +321,6 @@ def batch_download(
     ),
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
-    browser: str | None = typer.Option(None, help="Browser profile to use"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug mode"),
 ) -> None:
     """
@@ -348,7 +336,7 @@ def batch_download(
 
         console.print(f"[bold blue]Batch Download: {series}[/bold blue]\n")
 
-        cookie_file = get_authenticated_cookie_file(username, password, browser)
+        cookie_file = get_authenticated_cookie_file(username, password)
 
         client = BeaconGraphQL(cookie_file)
         episodes = client.get_series_episodes(series)
@@ -766,7 +754,6 @@ def show_info(
     url_or_slug: str = typer.Argument(..., help="Episode URL or slug"),
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
-    browser: str | None = typer.Option(None, help="Browser profile to use"),
 ) -> None:
     """
     Show detailed information about an episode.
@@ -782,7 +769,7 @@ def show_info(
         console.print("[bold blue]Episode Information[/bold blue]\n")
 
         # Get authenticated cookie file
-        cookie_file = get_authenticated_cookie_file(username, password, browser)
+        cookie_file = get_authenticated_cookie_file(username, password)
 
         # Fetch video content
         content = get_video_content(slug, cookie_file)

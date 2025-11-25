@@ -1,7 +1,7 @@
 """Utility functions for beacon-dl.
 
 This module provides helper functions for filename sanitization,
-language mapping, browser profile detection, and cookie loading.
+language mapping, and cookie loading.
 """
 
 import http.cookiejar
@@ -89,62 +89,3 @@ def map_language_to_iso(lang: str) -> str:
         'spa'
     """
     return LANGUAGE_TO_ISO_MAP.get(lang.lower(), "und")
-
-
-def detect_browser_profile() -> str | None:
-    """Auto-detect browser profile path.
-
-    Checks for browser profiles in order of preference:
-    1. Zen browser (Firefox fork) on macOS
-    2. Firefox on macOS
-    3. Firefox on Linux
-    4. Chrome on macOS
-    5. Chrome on Linux
-
-    Returns:
-        Browser profile string for yt-dlp, or None if no browser found
-
-    Example:
-        >>> profile = detect_browser_profile()
-        >>> print(profile)
-        'firefox:/Users/user/Library/Application Support/Firefox/Profiles/abc.default'
-    """
-    home = Path.home()
-
-    # Check for Zen browser (Firefox fork) on macOS
-    zen_path = home / "Library/Application Support/zen/Profiles"
-    if zen_path.exists():
-        profiles = list(zen_path.glob("*.default*")) + list(zen_path.glob("*.Default*"))
-        if profiles:
-            profiles.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            return f"firefox:{profiles[0]}"
-
-    # Check for Firefox on macOS
-    firefox_mac = home / "Library/Application Support/Firefox/Profiles"
-    if firefox_mac.exists():
-        profiles = list(firefox_mac.glob("*.default*")) + list(
-            firefox_mac.glob("*.Default*")
-        )
-        if profiles:
-            profiles.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            return f"firefox:{profiles[0]}"
-
-    # Check for Firefox on Linux
-    firefox_linux = home / ".mozilla/firefox"
-    if firefox_linux.exists():
-        profiles = list(firefox_linux.glob("*.default*"))
-        if profiles:
-            profiles.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-            return f"firefox:{profiles[0]}"
-
-    # Check for Chrome on macOS
-    chrome_mac = home / "Library/Application Support/Google/Chrome"
-    if chrome_mac.exists():
-        return "chrome"
-
-    # Check for Chrome on Linux
-    chrome_linux = home / ".config/google-chrome"
-    if chrome_linux.exists():
-        return "chrome"
-
-    return None

@@ -99,9 +99,6 @@ class Settings(BaseSettings):
     beacon_password: str | None = Field(
         default=None, validation_alias="BEACON_PASSWORD"
     )
-    browser_profile: str | None = Field(
-        default=None, validation_alias="BROWSER_PROFILE"
-    )
 
     # Debug
     debug: bool = Field(default=False, validation_alias="DEBUG")

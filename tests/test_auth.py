@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from src.beacon_dl.auth import (
     are_cookies_valid_with_buffer,
-    get_auth_args,
     validate_cookies,
 )
 from src.beacon_dl.config import Settings
@@ -127,66 +126,6 @@ class TestCookieCaching:
         """Test returns False when cookie file doesn't exist."""
         cookie_file = tmp_path / "nonexistent.txt"
         assert not are_cookies_valid_with_buffer(cookie_file, buffer_hours=6)
-
-
-class TestAuthArgs:
-    """Tests for get_auth_args functionality."""
-
-    def test_playwright_auth_priority(self):
-        """Test Playwright auth is prioritized when credentials provided."""
-        with patch("src.beacon_dl.config.settings") as mock_settings:
-            mock_settings.beacon_username = "user@example.com"
-            mock_settings.beacon_password = "password123"
-            mock_settings.browser_profile = None
-            mock_settings.debug = False
-
-            with patch("src.beacon_dl.auth.login_and_get_cookies") as mock_login:
-                mock_login.return_value = Path("test_cookies.txt")
-
-                args = get_auth_args()
-
-                assert args == ["--cookies", "test_cookies.txt"]
-                mock_login.assert_called_once()
-
-    def test_browser_profile_fallback(self):
-        """Test browser profile is used when no credentials provided."""
-        with patch("src.beacon_dl.auth.settings") as mock_settings:
-            mock_settings.beacon_username = None
-            mock_settings.beacon_password = None
-            mock_settings.browser_profile = "firefox:default"
-
-            args = get_auth_args()
-
-            assert args == ["--cookies-from-browser", "firefox:default"]
-
-    def test_auto_detect_fallback(self):
-        """Test auto-detection fallback when no auth configured."""
-        with patch("src.beacon_dl.auth.settings") as mock_settings:
-            mock_settings.beacon_username = None
-            mock_settings.beacon_password = None
-            mock_settings.browser_profile = None
-
-            with patch("src.beacon_dl.auth.detect_browser_profile") as mock_detect:
-                mock_detect.return_value = "chrome:Default"
-
-                args = get_auth_args()
-
-                assert args == ["--cookies-from-browser", "chrome:Default"]
-                mock_detect.assert_called_once()
-
-    def test_no_auth_available(self):
-        """Test empty args returned when no auth method available."""
-        with patch("src.beacon_dl.auth.settings") as mock_settings:
-            mock_settings.beacon_username = None
-            mock_settings.beacon_password = None
-            mock_settings.browser_profile = None
-
-            with patch("src.beacon_dl.auth.detect_browser_profile") as mock_detect:
-                mock_detect.return_value = None
-
-                args = get_auth_args()
-
-                assert args == []
 
 
 class TestSettings:

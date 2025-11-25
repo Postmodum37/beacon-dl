@@ -1,10 +1,9 @@
 """Tests for utility functions."""
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from src.beacon_dl.utils import (
-    detect_browser_profile,
     load_cookies,
     map_language_to_iso,
     sanitize_filename,
@@ -115,96 +114,6 @@ class TestLanguageMapping:
         result = map_language_to_iso("english.subtitles")
         # Depends on implementation - either "eng" or "und"
         assert result in ["eng", "und"]
-
-
-class TestBrowserDetection:
-    """Tests for browser profile detection."""
-
-    def test_detect_browser_profile_zen_macos(self):
-        """Test Zen browser detection on macOS."""
-        with patch.object(Path, "home", return_value=Path("/Users/test")):
-            with patch.object(Path, "exists") as mock_exists:
-                with patch.object(Path, "glob") as mock_glob:
-                    # Zen exists, Firefox doesn't
-                    def exists_side_effect(self=None):
-                        path_str = (
-                            str(self)
-                            if hasattr(self, "__str__")
-                            else str(mock_exists.call_args)
-                        )
-                        if "zen" in path_str.lower():
-                            return True
-                        return False
-
-                    mock_exists.side_effect = exists_side_effect
-
-                    # Mock profile found
-                    mock_profile = MagicMock()
-                    mock_profile.stat.return_value.st_mtime = 12345
-                    mock_glob.return_value = [mock_profile]
-
-                    result = detect_browser_profile()
-
-                    # When Zen is found, should return firefox:path
-                    if result:
-                        assert "firefox:" in result
-
-    def test_detect_browser_profile_firefox_fallback(self):
-        """Test Firefox fallback when Zen not available."""
-        with patch.object(Path, "home", return_value=Path("/Users/test")):
-            with patch.object(Path, "exists") as mock_exists:
-                with patch.object(Path, "glob") as mock_glob:
-                    # Only Firefox exists (not Zen)
-                    call_count = [0]
-
-                    def exists_side_effect(self=None):
-                        call_count[0] += 1
-                        # First call is Zen (no), second is Firefox (yes)
-                        if call_count[0] == 1:
-                            return False  # No Zen
-                        return True  # Firefox exists
-
-                    mock_exists.side_effect = exists_side_effect
-
-                    mock_profile = MagicMock()
-                    mock_profile.stat.return_value.st_mtime = 12345
-                    mock_glob.return_value = [mock_profile]
-
-                    result = detect_browser_profile()
-
-                    if result:
-                        assert "firefox:" in result
-
-    def test_detect_browser_profile_chrome_fallback(self):
-        """Test Chrome fallback when Firefox not available."""
-        with patch.object(Path, "home", return_value=Path("/Users/test")):
-            with patch.object(Path, "exists") as mock_exists:
-                with patch.object(Path, "glob") as mock_glob:
-                    # Only Chrome exists
-                    call_count = [0]
-
-                    def exists_side_effect(self=None):
-                        call_count[0] += 1
-                        # Zen: no, Firefox macOS: no, Firefox Linux: no, Chrome macOS: yes
-                        if call_count[0] <= 3:
-                            return False
-                        return True
-
-                    mock_exists.side_effect = exists_side_effect
-                    mock_glob.return_value = []  # No profiles found
-
-                    result = detect_browser_profile()
-
-                    if result:
-                        assert result == "chrome"
-
-    def test_detect_browser_profile_none_found(self):
-        """Test when no browser is found."""
-        with patch.object(Path, "home", return_value=Path("/Users/test")):
-            with patch.object(Path, "exists", return_value=False):
-                with patch.object(Path, "glob", return_value=[]):
-                    result = detect_browser_profile()
-                    assert result is None
 
 
 class TestSanitizeFilenameEdgeCases:

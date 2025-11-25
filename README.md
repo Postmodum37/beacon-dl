@@ -59,15 +59,12 @@ beacon-dl rename --execute                   # Apply naming updates
 ## Authentication
 
 ```bash
-# Option 1: Command line (recommended)
+# Command line
 beacon-dl -u user@example.com -p yourpassword
 
-# Option 2: Environment variables
+# Environment variables
 export BEACON_USERNAME=user@example.com
 export BEACON_PASSWORD=yourpassword
-
-# Option 3: Browser cookies (fallback)
-beacon-dl --browser firefox
 ```
 
 ## Configuration
