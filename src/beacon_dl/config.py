@@ -16,6 +16,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         populate_by_name=True,  # Allow both field names and aliases
         secrets_dir="/run/secrets",  # Docker secrets support
+        extra="ignore",  # Ignore unknown environment variables
     )
 
     preferred_resolution: str = Field(

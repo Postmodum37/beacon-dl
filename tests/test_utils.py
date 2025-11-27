@@ -1,8 +1,5 @@
 """Tests for utility functions."""
 
-from pathlib import Path
-from unittest.mock import patch
-
 from src.beacon_dl.utils import (
     load_cookies,
     map_language_to_iso,

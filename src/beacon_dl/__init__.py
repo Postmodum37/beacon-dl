@@ -27,4 +27,4 @@ Example usage:
     downloader.download_url("https://beacon.tv/content/c4-e007-on-the-scent")
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
