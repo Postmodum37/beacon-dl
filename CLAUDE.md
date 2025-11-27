@@ -4,18 +4,25 @@ Guidance for Claude Code when working with this repository.
 
 ## Project Overview
 
-**beacon-tv-downloader** - CLI tool to download BeaconTV videos with subtitles.
+**beacon-dl** - CLI tool to download BeaconTV videos with subtitles.
 
 - Direct HTTP downloads (no yt-dlp)
 - Playwright authentication (Docker-compatible)
 - Download history with SHA256 verification
 - Scene-style filenames for media libraries
+- Auto-installs Chromium browser on first run
 
 ## Quick Reference
 
 ```bash
-# Install
-uv pip install -e . && playwright install chromium
+# Run directly (no install)
+uvx beacon-dl -u user@example.com -p password
+
+# Install as tool
+uv tool install beacon-dl
+
+# Development install
+uv pip install -e .
 
 # Download latest episode
 beacon-dl -u user@example.com -p password
@@ -34,6 +41,7 @@ beacon-dl verify --full                  # Verify files
 src/beacon_dl/
 ├── main.py        # CLI commands (Typer)
 ├── auth.py        # Playwright login, cookie management
+├── browser.py     # Chromium auto-installation
 ├── downloader.py  # Download orchestration, FFmpeg muxing
 ├── content.py     # Fetch video metadata from beacon.tv
 ├── graphql.py     # GraphQL API client for browsing
@@ -52,6 +60,11 @@ src/beacon_dl/
 - Captures cookies from both members.beacon.tv and beacon.tv
 - Saves as Netscape format for HTTP client
 - Validates expiration with configurable buffer
+
+### Browser Auto-Install (browser.py)
+- Detects if Chromium is installed in Playwright cache
+- Automatically installs Chromium on first run
+- Platform-specific cache directory detection
 
 ### Download Flow (downloader.py)
 1. Fetch metadata via `content.py`
@@ -117,7 +130,6 @@ Example: `Campaign.4.S04E07.On.the.Scent.1080p.WEB-DL.AAC2.0.H.264.mkv`
 ```bash
 # Setup
 uv sync --extra dev
-playwright install chromium
 uv run pre-commit install
 
 # Test
@@ -145,4 +157,4 @@ uv run ruff format src/ tests/
 |-------|----------|
 | Subtitles fail | Unblock `assets-jpcust.jwpsrv.com` |
 | Auth errors | Check credentials |
-| Playwright missing | `playwright install chromium` |
+| Chromium install fails | Run `playwright install chromium` manually |

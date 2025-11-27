@@ -1,4 +1,4 @@
-# BeaconTV Downloader
+# Beacon DL
 
 Download BeaconTV videos with all subtitle tracks. Outputs properly formatted files for media libraries.
 
@@ -7,18 +7,52 @@ Download BeaconTV videos with all subtitle tracks. Outputs properly formatted fi
 
 ## Installation
 
+### Quick Run (No Install)
+
+Run directly without installing using [uv](https://docs.astral.sh/uv/):
+
 ```bash
-uv pip install -e .
-playwright install chromium
+# From PyPI
+uvx beacon-dl --help
+
+# From GitHub (latest)
+uvx --from git+https://github.com/Postmodum37/beacon-dl.git beacon-dl --help
 ```
 
-**Requirements:** Python 3.10+, ffmpeg (`brew install ffmpeg` on macOS)
+### Permanent Install
+
+```bash
+# Install as a tool with uv
+uv tool install beacon-dl
+
+# Or with pip
+pip install beacon-dl
+
+# Or from GitHub
+pip install git+https://github.com/Postmodum37/beacon-dl.git
+```
+
+### Development Install
+
+```bash
+git clone https://github.com/Postmodum37/beacon-dl.git
+cd beacon-dl
+uv pip install -e .
+```
+
+**Requirements:**
+- Python 3.10+
+- ffmpeg (`brew install ffmpeg` on macOS, `apt install ffmpeg` on Linux)
+- Chromium browser (auto-installed on first run)
 
 ## Quick Start
 
 ```bash
 # Download latest episode (requires auth)
 beacon-dl --username user@example.com --password yourpassword
+
+# Or with uvx
+uvx beacon-dl -u user@example.com -p yourpassword
 
 # Download specific episode
 beacon-dl https://beacon.tv/content/c4-e007-episode-title -u user@example.com -p pass
@@ -65,6 +99,7 @@ beacon-dl -u user@example.com -p yourpassword
 # Environment variables
 export BEACON_USERNAME=user@example.com
 export BEACON_PASSWORD=yourpassword
+beacon-dl
 ```
 
 ## Configuration
@@ -95,7 +130,7 @@ docker run --rm -e BEACON_USERNAME=... -e BEACON_PASSWORD=... -v $(pwd):/app bea
 |-------|----------|
 | Subtitles fail | Unblock `assets-jpcust.jwpsrv.com` in DNS blocker |
 | Auth errors | Check credentials, use `--debug` flag |
-| Playwright missing | Run `playwright install chromium` |
+| Chromium install fails | Run `playwright install chromium` manually |
 
 ## License
 

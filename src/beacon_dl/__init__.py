@@ -1,4 +1,11 @@
-"""Beacon TV Downloader - Download videos from beacon.tv.
+"""Beacon DL - Download videos from beacon.tv.
+
+Install and run via uvx (recommended):
+    uvx beacon-dl --help
+    uvx beacon-dl -u user@example.com -p password
+
+Or from GitHub:
+    uvx --from git+https://github.com/Postmodum37/beacon-dl.git beacon-dl
 
 This package provides a CLI and Python API for downloading videos from
 beacon.tv using direct HTTP requests. No yt-dlp required for downloading.
@@ -9,6 +16,7 @@ Key features:
 - Playwright for authentication only (Cloudflare bypass)
 - Multiple subtitle tracks support
 - Automatic filename generation
+- Auto-installs Chromium browser on first run
 
 Example usage:
     from beacon_dl.downloader import BeaconDownloader

@@ -5,6 +5,7 @@ from typing import Any
 from playwright.sync_api import sync_playwright
 from rich.console import Console
 
+from .browser import ensure_chromium_installed
 from .config import settings
 from .constants import (
     PLAYWRIGHT_BANNER_TIMEOUT,
@@ -410,6 +411,9 @@ def login_and_get_cookies(
         - Uses browser automation detection bypass flags
     """
     cookie_file = Path("beacon_cookies.txt")
+
+    # Ensure Chromium is installed before attempting to use Playwright
+    ensure_chromium_installed()
 
     console.print("[yellow]Logging in to Beacon TV via Playwright...[/yellow]")
 
