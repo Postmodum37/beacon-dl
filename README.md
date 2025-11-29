@@ -65,12 +65,15 @@ beacon-dl https://beacon.tv/content/c4-e007-episode-title -u user@example.com -p
 | `beacon-dl [URL]` | Download latest episode or specific URL |
 | `beacon-dl list-series` | Show all available series |
 | `beacon-dl list-episodes <series>` | List episodes in a series |
+| `beacon-dl search <query>` | Search episodes by title or description |
 | `beacon-dl batch-download <series>` | Download multiple episodes |
 | `beacon-dl info <episode>` | Show episode details (resolutions, subtitles) |
 | `beacon-dl check-new` | Check for new episodes |
 | `beacon-dl history` | Show download history |
+| `beacon-dl config` | Show current configuration |
 | `beacon-dl verify` | Verify downloaded files |
 | `beacon-dl rename` | Rename files to current schema |
+| `beacon-dl clear-history` | Clear download history database |
 
 ### Examples
 
@@ -78,6 +81,7 @@ beacon-dl https://beacon.tv/content/c4-e007-episode-title -u user@example.com -p
 # Browse content
 beacon-dl list-series
 beacon-dl list-episodes campaign-4
+beacon-dl search "dragon" --series campaign-4
 beacon-dl info c4-e007-episode-title
 
 # Download
@@ -85,9 +89,11 @@ beacon-dl --series exu-calamity              # Latest from specific series
 beacon-dl batch-download campaign-4 --start 1 --end 5   # Episodes 1-5
 
 # Maintenance
+beacon-dl config                             # Show current settings
 beacon-dl history --limit 50
 beacon-dl verify --full                      # SHA256 verification
 beacon-dl rename --execute                   # Apply naming updates
+beacon-dl clear-history --force              # Clear history database
 ```
 
 ## Authentication
@@ -122,6 +128,23 @@ Critical.Role.S04E07.Episode.Title.1080p.WEB-DL.AAC2.0.H.264.mkv
 ```bash
 docker build -t beacon-dl .
 docker run --rm -e BEACON_USERNAME=... -e BEACON_PASSWORD=... -v $(pwd):/app beacon-dl
+```
+
+## Development
+
+```bash
+# Install dev dependencies
+uv sync --extra dev
+
+# Run tests
+uv run pytest                    # All 427 tests
+uv run pytest -m unit            # Unit tests only
+uv run pytest -m security        # Security tests
+uv run pytest --cov              # With coverage (~74%)
+
+# Lint
+uv run ruff check src/ tests/
+uv run ruff format src/ tests/
 ```
 
 ## Troubleshooting

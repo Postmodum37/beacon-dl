@@ -6,6 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
+
 from beacon_dl.browser import (
     ensure_chromium_installed,
     get_playwright_cache_dir,

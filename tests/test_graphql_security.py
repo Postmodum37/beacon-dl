@@ -5,6 +5,8 @@ Tests GraphQL injection prevention and input validation.
 
 import pytest
 
+pytestmark = pytest.mark.security  # All tests in this module are security tests
+
 from src.beacon_dl.exceptions import ValidationError
 from src.beacon_dl.graphql import BeaconGraphQL, validate_slug
 

@@ -1,5 +1,9 @@
 """Tests for download history module."""
 
+import pytest
+
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
+
 from src.beacon_dl.history import DownloadHistory, DownloadRecord, VerifyResult
 
 

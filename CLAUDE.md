@@ -96,10 +96,12 @@ src/beacon_dl/
 | `beacon-dl [URL]` | Download (default: latest Campaign 4) |
 | `list-series` | Show all series |
 | `list-episodes <series>` | List episodes in series |
+| `search <query>` | Search episodes by title/description |
 | `batch-download <series>` | Download multiple episodes |
 | `check-new` | Check for new episodes |
 | `info <slug>` | Show episode details |
 | `history` | Show download history |
+| `config` | Show current configuration |
 | `verify` | Verify downloaded files |
 | `rename` | Rename files to current schema |
 | `clear-history` | Clear history database |
@@ -133,14 +135,55 @@ uv sync --extra dev
 uv run pre-commit install
 
 # Test
-uv run pytest                    # All tests
-uv run pytest --cov              # With coverage
-uv run pytest -m unit            # Unit tests only
+uv run pytest                    # All tests (427 tests)
+uv run pytest --cov              # With coverage (~74%)
+uv run pytest -m unit            # Unit tests only (369 tests)
+uv run pytest -m integration     # Integration tests (44 tests)
+uv run pytest -m security        # Security tests (14 tests)
 
 # Lint
 uv run ruff check src/ tests/
 uv run ruff format src/ tests/
 ```
+
+## Test Suite
+
+### Structure
+
+```
+tests/
+├── conftest.py              # Shared fixtures (cookie files, mock data)
+├── test_auth.py             # Authentication and cookie management
+├── test_browser.py          # Chromium auto-installation
+├── test_cli_commands.py     # CLI command integration tests
+├── test_config.py           # Settings validation (82 tests)
+├── test_content.py          # Content parsing (63 tests)
+├── test_downloader.py       # Download orchestration
+├── test_exceptions.py       # Exception hierarchy
+├── test_graphql.py          # GraphQL API client
+├── test_graphql_security.py # GraphQL injection prevention
+├── test_history.py          # Download history tracking
+├── test_models.py           # Domain models
+└── test_utils.py            # Utility functions (parametrized)
+```
+
+### Markers
+
+All tests are tagged with markers for selective execution:
+
+| Marker | Description | Count |
+|--------|-------------|-------|
+| `unit` | Fast, isolated unit tests | 369 |
+| `integration` | Tests with external dependencies | 44 |
+| `security` | Input validation and injection prevention | 14 |
+
+### Key Test Patterns
+
+- **Shared fixtures** in `conftest.py` (mock cookies, video sources, API responses)
+- **Parametrized tests** for data-driven testing (language mapping, filename sanitization)
+- **Module-level markers** via `pytestmark = pytest.mark.unit`
+- **httpx_mock** for HTTP request mocking
+- **CliRunner** for Typer CLI testing
 
 ## Dependencies
 

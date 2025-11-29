@@ -1,8 +1,11 @@
 """Tests for authentication module."""
 
+import pytest
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
+
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 from src.beacon_dl.auth import (
     are_cookies_valid_with_buffer,

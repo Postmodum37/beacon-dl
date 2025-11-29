@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
+
 from src.beacon_dl.content import (
     ContentMetadata,
     SubtitleTrack,
