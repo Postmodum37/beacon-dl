@@ -2,8 +2,6 @@
 
 import pytest
 
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
-
 from src.beacon_dl.exceptions import (
     AuthenticationError,
     BeaconError,
@@ -14,6 +12,8 @@ from src.beacon_dl.exceptions import (
     MergeError,
     ValidationError,
 )
+
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 
 class TestExceptionHierarchy:

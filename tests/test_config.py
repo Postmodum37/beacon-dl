@@ -8,12 +8,11 @@ This module tests the Pydantic Settings model including:
 """
 
 import pytest
-
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 from pydantic import ValidationError
 
 from src.beacon_dl.config import Settings
 
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 # =============================================================================
 # Default Values Tests

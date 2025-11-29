@@ -2,9 +2,9 @@
 
 import pytest
 
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
-
 from src.beacon_dl.models import Collection, Episode
+
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 
 class TestCollection:

@@ -6,11 +6,11 @@ Tests all beacon-dl CLI commands with mocked dependencies.
 from unittest.mock import Mock, patch
 
 import pytest
-
-pytestmark = pytest.mark.integration  # CLI tests are integration tests
 from typer.testing import CliRunner
 
 from src.beacon_dl.main import app
+
+pytestmark = pytest.mark.integration  # CLI tests are integration tests
 
 runner = CliRunner()
 

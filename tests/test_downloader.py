@@ -4,8 +4,6 @@ from unittest.mock import patch
 
 import pytest
 
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
-
 from src.beacon_dl.content import (
     ContentMetadata,
     SubtitleTrack,
@@ -13,6 +11,8 @@ from src.beacon_dl.content import (
     VideoSource,
 )
 from src.beacon_dl.downloader import BeaconDownloader
+
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 
 @pytest.fixture

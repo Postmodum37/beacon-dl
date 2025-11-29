@@ -9,14 +9,13 @@ import re
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, TypeVar
-
-T = TypeVar("T")
+from typing import TypeVar
 
 from rich.console import Console
 
 from .constants import LANGUAGE_TO_ISO_MAP
 
+T = TypeVar("T")
 console = Console()
 
 

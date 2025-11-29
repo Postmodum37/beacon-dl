@@ -28,7 +28,6 @@ from .utils import (
     format_episode_code,
     format_file_size,
     print_error,
-    print_success,
     print_warning,
     retry_with_backoff,
 )

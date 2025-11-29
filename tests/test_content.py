@@ -8,13 +8,9 @@ This module tests the content fetching and parsing functionality including:
 """
 
 import json
-from pathlib import Path
-from unittest.mock import Mock, patch
 
 import httpx
 import pytest
-
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 from src.beacon_dl.content import (
     ContentMetadata,
@@ -30,6 +26,7 @@ from src.beacon_dl.content import (
     parse_next_data,
 )
 
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 # =============================================================================
 # Dataclass Tests

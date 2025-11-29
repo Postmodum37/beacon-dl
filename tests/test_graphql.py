@@ -6,9 +6,9 @@ Tests GraphQL queries, error handling, and data parsing.
 import httpx
 import pytest
 
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
-
 from src.beacon_dl.graphql import BeaconGraphQL
+
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 
 @pytest.fixture

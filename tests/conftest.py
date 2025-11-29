@@ -4,9 +4,10 @@ This module provides common fixtures used across multiple test files,
 reducing duplication and ensuring consistent test data.
 """
 
-import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
+
+import pytest
 
 from src.beacon_dl.content import (
     ContentMetadata,
@@ -14,7 +15,6 @@ from src.beacon_dl.content import (
     VideoContent,
     VideoSource,
 )
-
 
 # =============================================================================
 # Cookie Fixtures

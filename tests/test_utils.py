@@ -6,8 +6,6 @@ multiple input/output combinations.
 
 import pytest
 
-pytestmark = pytest.mark.unit  # All tests in this module are unit tests
-
 from src.beacon_dl.utils import (
     extract_slug,
     format_bitrate,
@@ -19,6 +17,7 @@ from src.beacon_dl.utils import (
     sanitize_filename,
 )
 
+pytestmark = pytest.mark.unit  # All tests in this module are unit tests
 
 # =============================================================================
 # Filename Sanitization Tests
