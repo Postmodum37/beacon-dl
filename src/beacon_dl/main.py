@@ -58,6 +58,7 @@ def default_callback(ctx: typer.Context) -> None:
             username=None,
             password=None,
             series=None,
+            retry=0,
             debug=False,
         )
 
