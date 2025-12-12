@@ -55,6 +55,9 @@ def ensure_chromium_installed() -> bool:
     between different Playwright installations. The command is idempotent and
     exits quickly if the correct browser version is already installed.
 
+    If the browser version changes, clears the browser profile to avoid
+    compatibility issues between browser versions.
+
     Returns:
         True if chromium is available (was installed or already present)
 
@@ -69,6 +72,12 @@ def ensure_chromium_installed() -> bool:
             "[yellow]Chromium browser not found. Installing automatically...[/yellow]"
         )
         console.print("[dim]This is a one-time setup that may take a minute.[/dim]")
+
+    # Track installed versions before install
+    cache_dir = get_playwright_cache_dir()
+    versions_before = set()
+    if cache_dir.exists():
+        versions_before = {d.name for d in cache_dir.glob("chromium_headless_shell-*")}
 
     try:
         # Always run install to handle version mismatches between Playwright versions
@@ -85,6 +94,20 @@ def ensure_chromium_installed() -> bool:
             raise RuntimeError(
                 f"Playwright chromium installation failed: {result.stderr}"
             )
+
+        # Check if new version was installed
+        versions_after = set()
+        if cache_dir.exists():
+            versions_after = {d.name for d in cache_dir.glob("chromium_headless_shell-*")}
+
+        new_versions = versions_after - versions_before
+        if new_versions:
+            # New browser version installed - clear stale profile to avoid issues
+            profile_dir = Path("playwright_profile")
+            if profile_dir.exists():
+                import shutil
+                shutil.rmtree(profile_dir, ignore_errors=True)
+                console.print("[dim]Cleared stale browser profile[/dim]")
 
         if first_install:
             console.print("[green]Chromium installed successfully![/green]")
