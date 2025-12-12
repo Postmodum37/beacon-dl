@@ -56,10 +56,32 @@ class TestIsChromiumInstalled:
             mock_cache.return_value = tmp_path / "nonexistent"
             assert not is_chromium_installed()
 
-    def test_chromium_installed(self, tmp_path):
-        """Test returns True when chromium directory exists."""
-        # Create mock chromium directory
+    def test_chromium_partial_install_no_headless_shell(self, tmp_path):
+        """Test returns False when only chromium exists but not headless shell."""
+        # Playwright 1.49+ uses chromium_headless_shell for headless mode
         (tmp_path / "chromium-1120").mkdir()
+
+        with patch(
+            "beacon_dl.browser.get_playwright_cache_dir"
+        ) as mock_cache:
+            mock_cache.return_value = tmp_path
+            assert not is_chromium_installed()
+
+    def test_chromium_partial_install_no_regular_chromium(self, tmp_path):
+        """Test returns False when only headless shell exists but not chromium."""
+        (tmp_path / "chromium_headless_shell-1120").mkdir()
+
+        with patch(
+            "beacon_dl.browser.get_playwright_cache_dir"
+        ) as mock_cache:
+            mock_cache.return_value = tmp_path
+            assert not is_chromium_installed()
+
+    def test_chromium_installed(self, tmp_path):
+        """Test returns True when chromium and headless shell directories exist."""
+        # Create mock chromium directories (both required for headless support)
+        (tmp_path / "chromium-1120").mkdir()
+        (tmp_path / "chromium_headless_shell-1120").mkdir()
 
         with patch(
             "beacon_dl.browser.get_playwright_cache_dir"
@@ -71,6 +93,8 @@ class TestIsChromiumInstalled:
         """Test returns True with multiple chromium versions."""
         (tmp_path / "chromium-1119").mkdir()
         (tmp_path / "chromium-1120").mkdir()
+        (tmp_path / "chromium_headless_shell-1119").mkdir()
+        (tmp_path / "chromium_headless_shell-1120").mkdir()
 
         with patch(
             "beacon_dl.browser.get_playwright_cache_dir"
@@ -85,6 +109,7 @@ class TestEnsureChromiumInstalled:
     def test_already_installed_skips_install(self, tmp_path):
         """Test returns True immediately if chromium already installed."""
         (tmp_path / "chromium-1120").mkdir()
+        (tmp_path / "chromium_headless_shell-1120").mkdir()
 
         with patch(
             "beacon_dl.browser.get_playwright_cache_dir"

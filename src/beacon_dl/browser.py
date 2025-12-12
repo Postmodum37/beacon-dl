@@ -32,15 +32,18 @@ def is_chromium_installed() -> bool:
     """Check if Playwright Chromium browser is installed.
 
     Returns:
-        True if chromium directory exists in playwright cache
+        True if chromium directory exists in playwright cache.
+        Checks for both regular chromium and headless shell variants.
     """
     cache_dir = get_playwright_cache_dir()
     if not cache_dir.exists():
         return False
 
-    # Look for chromium-* directories (version varies with playwright version)
+    # Look for chromium-* and chromium_headless_shell-* directories
+    # (version varies with playwright version, headless shell used in headless mode)
     chromium_dirs = list(cache_dir.glob("chromium-*"))
-    return len(chromium_dirs) > 0
+    headless_shell_dirs = list(cache_dir.glob("chromium_headless_shell-*"))
+    return len(chromium_dirs) > 0 and len(headless_shell_dirs) > 0
 
 
 def ensure_chromium_installed() -> bool:
