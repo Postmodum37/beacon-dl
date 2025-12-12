@@ -29,28 +29,31 @@ def get_playwright_cache_dir() -> Path:
 
 
 def is_chromium_installed() -> bool:
-    """Check if Playwright Chromium browser is installed.
+    """Check if Playwright Chromium browser is installed for current version.
+
+    Note: This is a simple heuristic check. For reliability, ensure_chromium_installed()
+    will always verify the installation is correct for the current Playwright version.
 
     Returns:
-        True if chromium directory exists in playwright cache.
-        Checks for both regular chromium and headless shell variants.
+        True if chromium directories exist in playwright cache (may still need update).
     """
     cache_dir = get_playwright_cache_dir()
     if not cache_dir.exists():
         return False
 
-    # Look for chromium-* and chromium_headless_shell-* directories
-    # (version varies with playwright version, headless shell used in headless mode)
+    # Quick check for any chromium installation
+    # Note: This doesn't verify version compatibility - ensure_chromium_installed handles that
     chromium_dirs = list(cache_dir.glob("chromium-*"))
     headless_shell_dirs = list(cache_dir.glob("chromium_headless_shell-*"))
     return len(chromium_dirs) > 0 and len(headless_shell_dirs) > 0
 
 
 def ensure_chromium_installed() -> bool:
-    """Ensure Chromium is installed, installing if necessary.
+    """Ensure Chromium is installed for the current Playwright version.
 
-    This is called automatically before Playwright is used.
-    Installation happens silently on first run.
+    This always runs `playwright install chromium` to handle version mismatches
+    between different Playwright installations. The command is idempotent and
+    exits quickly if the correct browser version is already installed.
 
     Returns:
         True if chromium is available (was installed or already present)
@@ -58,16 +61,18 @@ def ensure_chromium_installed() -> bool:
     Raises:
         RuntimeError: If installation fails
     """
-    if is_chromium_installed():
-        return True
+    # Quick heuristic check - if nothing installed, show user-friendly message
+    first_install = not is_chromium_installed()
 
-    console.print(
-        "[yellow]Chromium browser not found. Installing automatically...[/yellow]"
-    )
-    console.print("[dim]This is a one-time setup that may take a minute.[/dim]")
+    if first_install:
+        console.print(
+            "[yellow]Chromium browser not found. Installing automatically...[/yellow]"
+        )
+        console.print("[dim]This is a one-time setup that may take a minute.[/dim]")
 
     try:
-        # Use playwright module via python -m to ensure we use the right installation
+        # Always run install to handle version mismatches between Playwright versions
+        # The command is idempotent - exits quickly if correct version already installed
         result = subprocess.run(
             [sys.executable, "-m", "playwright", "install", "chromium"],
             capture_output=True,
@@ -81,7 +86,8 @@ def ensure_chromium_installed() -> bool:
                 f"Playwright chromium installation failed: {result.stderr}"
             )
 
-        console.print("[green]Chromium installed successfully![/green]")
+        if first_install:
+            console.print("[green]Chromium installed successfully![/green]")
         return True
 
     except subprocess.TimeoutExpired as err:

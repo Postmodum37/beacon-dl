@@ -106,8 +106,8 @@ class TestIsChromiumInstalled:
 class TestEnsureChromiumInstalled:
     """Tests for ensure_chromium_installed function."""
 
-    def test_already_installed_skips_install(self, tmp_path):
-        """Test returns True immediately if chromium already installed."""
+    def test_already_installed_runs_silently(self, tmp_path):
+        """Test runs install silently when chromium directories exist (handles version mismatch)."""
         (tmp_path / "chromium-1120").mkdir()
         (tmp_path / "chromium_headless_shell-1120").mkdir()
 
@@ -116,11 +116,13 @@ class TestEnsureChromiumInstalled:
         ) as mock_cache:
             mock_cache.return_value = tmp_path
 
-            with patch("subprocess.run") as mock_run:
+            with patch("beacon_dl.browser.subprocess.run") as mock_run:
+                mock_run.return_value = MagicMock(returncode=0, stderr="")
                 result = ensure_chromium_installed()
 
                 assert result is True
-                mock_run.assert_not_called()  # Should not call install
+                # Install is called to handle potential version mismatches
+                mock_run.assert_called_once()
 
     def test_installs_if_missing(self, tmp_path):
         """Test runs installation when chromium is missing."""
