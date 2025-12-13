@@ -851,14 +851,15 @@ def rename_files(
     ),
 ) -> None:
     """
-    Rename existing files to current naming schema.
+    Rename existing files to current scene-style naming schema.
 
-    Removes release group suffixes from filenames (the trailing "-GroupName" part).
+    Converts old naming format to new scene-style format with:
+    - Collection name -> Display name (Campaign.4 -> Critical.Role)
+    - BCTV service tag added
+    - Release group appended
 
-    Old schema: Campaign.4.S04E07.On.the.Scent.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv
-    New schema: Campaign.4.S04E07.On.the.Scent.1080p.WEB-DL.AAC2.0.H.264.mkv
-
-    Pattern matched: *-{ReleaseGroup}.{ext} where ReleaseGroup is alphanumeric.
+    Old: Campaign.4.S04E07.On.the.Scent.1080p.WEB-DL.AAC2.0.H.264.mkv
+    New: Critical.Role.S04E07.On.the.Scent.1080p.BCTV.WEB-DL.AAC2.0.H.264-Pawsty.mkv
 
     Use --execute to actually perform renames (default is --dry-run).
 
@@ -868,6 +869,8 @@ def rename_files(
         beacon-dl rename --execute          # Actually rename files
         beacon-dl rename --pattern "*.mp4"  # Only rename mp4 files
     """
+    from .constants import COLLECTION_DISPLAY_NAMES, SERVICE_TAG
+
     try:
         console.print("[bold blue]File Renaming Tool[/bold blue]\n")
 
@@ -875,9 +878,27 @@ def rename_files(
             console.print("[yellow]DRY RUN - no files will be renamed[/yellow]")
             console.print("[dim]Use --execute to actually rename files[/dim]\n")
 
-        # Pattern to match release group suffix: "-GroupName.ext"
-        # Matches alphanumeric release group names like Pawsty, RARBG, etc.
-        release_group_pattern = re.compile(r"^(.+)-([A-Za-z0-9]+)\.(\w+)$")
+        # Pattern to match old format:
+        # Campaign.4.S04E07.Title.1080p.WEB-DL.AAC2.0.H.264.mkv
+        # or with existing release group:
+        # Campaign.4.S04E07.Title.1080p.WEB-DL.AAC2.0.H.264-Group.mkv
+        old_format_pattern = re.compile(
+            r"^(Campaign\.\d+|Candela\.Obscura|4-Sided\.Dive|Exandria\.Unlimited|Midst)"
+            r"\.(S\d{2}E\d{2})"
+            r"\.(.+?)"
+            r"\.(\d{3,4}p)"
+            r"\.([A-Za-z0-9.-]+)"  # source type (WEB-DL, etc)
+            r"\.([A-Z]+\d+\.\d+)"  # audio (AAC2.0, etc)
+            r"\.([A-Za-z0-9.]+?)"  # video codec (H.264, etc)
+            r"(?:-([A-Za-z0-9]+))?"  # optional existing release group
+            r"\.(\w+)$"  # extension
+        )
+
+        # Build reverse mapping from dotted names to original names
+        dotted_to_original: dict[str, str] = {}
+        for original, display in COLLECTION_DISPLAY_NAMES.items():
+            dotted = original.replace(" ", ".")
+            dotted_to_original[dotted] = original
 
         # Find files matching glob pattern
         files = list(directory.glob(pattern))
@@ -888,25 +909,53 @@ def rename_files(
         history = DownloadHistory()
         renamed_count = 0
         skipped_count = 0
+        no_match_count = 0
+
+        release_group = settings.release_group
 
         for file_path in sorted(files):
             filename = file_path.name
-            match = release_group_pattern.match(filename)
+            match = old_format_pattern.match(filename)
 
             if not match:
-                # File doesn't have release group pattern
+                # Check if already in new format (has BCTV tag)
+                if ".BCTV." in filename:
+                    continue  # Already converted
+                no_match_count += 1
+                if settings.debug:
+                    console.print(f"[dim]NO MATCH: {filename}[/dim]")
                 continue
 
-            base_name = match.group(1)
-            release_group = match.group(2)
-            extension = match.group(3)
+            old_collection = match.group(1)  # e.g., "Campaign.4"
+            season_ep = match.group(2)  # e.g., "S04E07"
+            title = match.group(3)  # e.g., "On.the.Scent"
+            resolution = match.group(4)  # e.g., "1080p"
+            source = match.group(5)  # e.g., "WEB-DL"
+            audio = match.group(6)  # e.g., "AAC2.0"
+            video = match.group(7)  # e.g., "H.264"
+            # group(8) is existing release group (ignored)
+            extension = match.group(9)  # e.g., "mkv"
 
-            # New filename without release group
-            new_filename = f"{base_name}.{extension}"
+            # Convert collection name to display name
+            original_name = dotted_to_original.get(old_collection)
+            if original_name and original_name in COLLECTION_DISPLAY_NAMES:
+                display_name = COLLECTION_DISPLAY_NAMES[original_name]
+            else:
+                display_name = old_collection  # Keep as-is if not in mapping
+
+            # Build new filename with BCTV service tag and release group
+            new_filename = (
+                f"{display_name}.{season_ep}.{title}.{resolution}."
+                f"{SERVICE_TAG}.{source}.{audio}.{video}-{release_group}.{extension}"
+            )
             new_path = file_path.parent / new_filename
 
+            # Skip if already has correct name
+            if filename == new_filename:
+                continue
+
             # Check if target already exists
-            if new_path.exists():
+            if new_path.exists() and new_path != file_path:
                 print_warning(f"SKIP: {filename}")
                 console.print(f"  [dim]Target already exists: {new_filename}[/dim]")
                 skipped_count += 1
@@ -915,7 +964,6 @@ def rename_files(
             if dry_run:
                 console.print(f"[cyan]WOULD RENAME[/cyan] {filename}")
                 console.print(f"  [dim]→ {new_filename}[/dim]")
-                console.print(f"  [dim]  (removing release group: {release_group})[/dim]")
             else:
                 # Actually rename the file
                 file_path.rename(new_path)
@@ -937,6 +985,8 @@ def rename_files(
             console.print(f"  [green]Renamed: {renamed_count}[/green]")
         if skipped_count > 0:
             console.print(f"  [yellow]Skipped: {skipped_count}[/yellow]")
+        if no_match_count > 0 and settings.debug:
+            console.print(f"  [dim]No match: {no_match_count}[/dim]")
 
         if dry_run and renamed_count > 0:
             console.print("\n[dim]Run with --execute to apply changes[/dim]")

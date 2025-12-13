@@ -116,6 +116,29 @@ KNOWN_COLLECTIONS = {
     "campaign-4": "68caf69e7a76bce4b7aa689a",
 }
 
+# Collection name to display name mapping for scene-style releases
+# Keys are BeaconTV internal collection names
+# Values are proper show names for releases
+COLLECTION_DISPLAY_NAMES: dict[str, str] = {
+    "Campaign 4": "Critical.Role",
+    "Campaign 3": "Critical.Role",
+    "Campaign 2": "Critical.Role",
+    "Campaign 1": "Critical.Role",
+    "Exandria Unlimited": "Exandria.Unlimited",
+    "Candela Obscura": "Candela.Obscura",
+    "4-Sided Dive": "4-Sided.Dive",
+    "Midst": "Midst",
+}
+
+# Default show name when collection is unknown
+DEFAULT_SHOW_NAME = "Critical.Role"
+
+# Service tag for BeaconTV (like AMZN, NF, DSNP)
+SERVICE_TAG = "BCTV"
+
+# Default release group
+DEFAULT_RELEASE_GROUP = "Pawsty"
+
 # Validation patterns
 SLUG_PATTERN = r"^[a-zA-Z0-9_-]+$"
 RESOLUTION_PATTERN = r"^\d{3,4}p$"

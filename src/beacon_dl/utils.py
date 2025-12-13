@@ -13,7 +13,11 @@ from typing import TypeVar
 
 from rich.console import Console
 
-from .constants import LANGUAGE_TO_ISO_MAP
+from .constants import (
+    COLLECTION_DISPLAY_NAMES,
+    DEFAULT_SHOW_NAME,
+    LANGUAGE_TO_ISO_MAP,
+)
 
 T = TypeVar("T")
 console = Console()
@@ -73,6 +77,35 @@ def sanitize_filename(name: str) -> str:
         return "unnamed"
 
     return clean
+
+
+def get_display_name(collection_name: str | None) -> str:
+    """Get display name for a collection.
+
+    Converts BeaconTV internal collection names to proper show names
+    for scene-style releases.
+
+    Args:
+        collection_name: BeaconTV collection name (e.g., "Campaign 4")
+
+    Returns:
+        Display name for releases (e.g., "Critical.Role")
+
+    Example:
+        >>> get_display_name("Campaign 4")
+        'Critical.Role'
+        >>> get_display_name("Candela Obscura")
+        'Candela.Obscura'
+    """
+    if not collection_name:
+        return DEFAULT_SHOW_NAME
+
+    # Check mapping first
+    if collection_name in COLLECTION_DISPLAY_NAMES:
+        return COLLECTION_DISPLAY_NAMES[collection_name]
+
+    # Fallback: sanitize the collection name
+    return sanitize_filename(collection_name)
 
 
 def map_language_to_iso(lang: str) -> str:

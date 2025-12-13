@@ -307,20 +307,22 @@ class TestRenameCommand:
 
     def test_rename_dry_run_with_files(self, tmp_path):
         """Test rename shows what would be renamed."""
-        # Create a file with old naming schema (with release group)
-        old_file = tmp_path / "Critical.Role.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        # Create a file with old naming schema (without BCTV and release group)
+        old_file = tmp_path / "Campaign.4.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264.mkv"
         old_file.touch()
 
         result = runner.invoke(app, ["rename", str(tmp_path)])
 
         assert result.exit_code == 0
         assert "WOULD RENAME" in result.output
+        assert "Critical.Role" in result.output
+        assert "BCTV" in result.output
         assert "Pawsty" in result.output
 
     def test_rename_execute_renames_file(self, tmp_path):
         """Test rename actually renames file with --execute."""
         # Create a file with old naming schema
-        old_file = tmp_path / "Critical.Role.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        old_file = tmp_path / "Campaign.4.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264.mkv"
         old_file.touch()
 
         result = runner.invoke(app, ["rename", str(tmp_path), "--execute"])
@@ -328,17 +330,21 @@ class TestRenameCommand:
         assert result.exit_code == 0
         assert "RENAMED" in result.output
 
-        # Verify the file was renamed
-        new_file = tmp_path / "Critical.Role.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264.mkv"
+        # Verify the file was renamed to new scene format
+        new_file = (
+            tmp_path / "Critical.Role.S04E06.Test.1080p.BCTV.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        )
         assert new_file.exists()
         assert not old_file.exists()
 
     def test_rename_skips_when_target_exists(self, tmp_path):
         """Test rename skips when target file already exists."""
-        # Create both old and new files
-        old_file = tmp_path / "Test.File-Group.mkv"
+        # Create old file and the target new file
+        old_file = tmp_path / "Campaign.4.S04E06.Test.1080p.WEB-DL.AAC2.0.H.264.mkv"
         old_file.touch()
-        new_file = tmp_path / "Test.File.mkv"
+        new_file = (
+            tmp_path / "Critical.Role.S04E06.Test.1080p.BCTV.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
+        )
         new_file.touch()
 
         result = runner.invoke(app, ["rename", str(tmp_path), "--execute"])

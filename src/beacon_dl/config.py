@@ -104,6 +104,24 @@ class Settings(BaseSettings):
     # Debug
     debug: bool = Field(default=False, validation_alias="DEBUG")
 
+    # Release group for scene-style naming
+    release_group: str = Field(default="Pawsty", validation_alias="RELEASE_GROUP")
+
+    @field_validator("release_group")
+    @classmethod
+    def validate_release_group(cls, v: str) -> str:
+        """Validate release group (alphanumeric, hyphens, underscores only)."""
+        if not v:
+            raise ValueError("Release group cannot be empty")
+        if not re.match(r"^[a-zA-Z0-9_-]+$", v):
+            raise ValueError(
+                f'Invalid release group: "{v}". '
+                "Only alphanumeric characters, hyphens, and underscores allowed."
+            )
+        if len(v) > 50:
+            raise ValueError("Release group too long (max 50 characters)")
+        return v
+
     # Cookie caching
     cookie_expiry_buffer_hours: int = Field(
         default=6, validation_alias="COOKIE_EXPIRY_BUFFER_HOURS"

@@ -12,6 +12,7 @@ from src.beacon_dl.utils import (
     format_duration,
     format_episode_code,
     format_file_size,
+    get_display_name,
     load_cookies,
     map_language_to_iso,
     sanitize_filename,
@@ -79,6 +80,48 @@ class TestFilenameSanitization:
         """Test unicode characters are removed."""
         result = sanitize_filename("Café 中文")
         assert result == "Caf."
+
+
+# =============================================================================
+# Display Name Mapping Tests
+# =============================================================================
+
+
+class TestGetDisplayName:
+    """Tests for get_display_name function."""
+
+    @pytest.mark.parametrize(
+        "collection_name,expected",
+        [
+            ("Campaign 4", "Critical.Role"),
+            ("Campaign 3", "Critical.Role"),
+            ("Campaign 2", "Critical.Role"),
+            ("Campaign 1", "Critical.Role"),
+            ("Candela Obscura", "Candela.Obscura"),
+            ("4-Sided Dive", "4-Sided.Dive"),
+            ("Exandria Unlimited", "Exandria.Unlimited"),
+            ("Midst", "Midst"),
+            (None, "Critical.Role"),  # Default when None
+            ("Unknown Show", "Unknown.Show"),  # Fallback to sanitized
+            ("", "Critical.Role"),  # Empty string uses default
+        ],
+        ids=[
+            "campaign_4",
+            "campaign_3",
+            "campaign_2",
+            "campaign_1",
+            "candela_obscura",
+            "4_sided_dive",
+            "exandria_unlimited",
+            "midst",
+            "none_value",
+            "unknown_show",
+            "empty_string",
+        ],
+    )
+    def test_get_display_name(self, collection_name: str | None, expected: str):
+        """Test collection name to display name conversion."""
+        assert get_display_name(collection_name) == expected
 
 
 # =============================================================================

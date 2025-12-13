@@ -117,15 +117,33 @@ Environment variables or `.env` file:
 | `PREFERRED_RESOLUTION` | 1080p | Video quality |
 | `CONTAINER_FORMAT` | mkv | Output format |
 | `SOURCE_TYPE` | WEB-DL | Source tag |
+| `RELEASE_GROUP` | Pawsty | Scene release group tag |
 | `DEBUG` | false | Verbose output |
 
 ## Output Format
 
+Scene-style naming:
 ```
-{Collection}.S{season}E{episode}.{Title}.{resolution}.{source}.{audio}.{video}.{format}
+{Show}.S{season}E{episode}.{Title}.{resolution}.{service}.{source}.{audio}.{video}-{group}.{format}
 ```
 
-Example: `Campaign.4.S04E07.On.the.Scent.1080p.WEB-DL.AAC2.0.H.264.mkv`
+Example: `Critical.Role.S04E07.On.the.Scent.1080p.BCTV.WEB-DL.AAC2.0.H.264-Pawsty.mkv`
+
+### Service Tag
+
+BCTV identifies BeaconTV as the source (like AMZN for Amazon, NF for Netflix, DSNP for Disney+).
+
+### Show Name Mapping
+
+BeaconTV collection names are mapped to proper show names:
+
+| Collection Name | Display Name |
+|-----------------|--------------|
+| Campaign 1-4 | Critical.Role |
+| Exandria Unlimited | Exandria.Unlimited |
+| Candela Obscura | Candela.Obscura |
+| 4-Sided Dive | 4-Sided.Dive |
+| Midst | Midst |
 
 ## Development
 

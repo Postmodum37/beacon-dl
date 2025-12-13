@@ -74,6 +74,7 @@ curl_output.html
 .claude/
 .serena/
 .spec-workflow/
+plans/
 
 # OS
 .DS_Store

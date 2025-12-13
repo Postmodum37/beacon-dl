@@ -72,6 +72,11 @@ class TestDefaultSettings:
         settings = Settings()
         assert settings.cookie_expiry_buffer_hours == 6
 
+    def test_default_release_group(self):
+        """Test default release group is Pawsty."""
+        settings = Settings()
+        assert settings.release_group == "Pawsty"
+
     def test_default_user_agent(self):
         """Test default user agent is a Chrome user agent."""
         settings = Settings()
@@ -262,6 +267,48 @@ class TestAudioChannelsValidation:
         with pytest.raises(ValidationError) as exc_info:
             Settings(default_audio_channels=channels)
         assert "default_audio_channels" in str(exc_info.value)
+
+
+# =============================================================================
+# Release Group Validation Tests
+# =============================================================================
+
+
+class TestReleaseGroupValidation:
+    """Tests for release_group field validation."""
+
+    @pytest.mark.parametrize(
+        "release_group",
+        [
+            "Pawsty",
+            "Kitsune",
+            "My-Group",
+            "Group_123",
+            "ABC123",
+        ],
+        ids=["pawsty", "kitsune", "with_hyphen", "with_underscore", "alphanumeric"],
+    )
+    def test_valid_release_groups(self, release_group):
+        """Test valid release group values are accepted."""
+        settings = Settings(release_group=release_group)
+        assert settings.release_group == release_group
+
+    @pytest.mark.parametrize(
+        "release_group",
+        [
+            "",  # Empty
+            "Invalid!Group",  # Special char
+            "Group With Spaces",  # Spaces
+            "Group;rm -rf",  # Injection
+            "A" * 51,  # Too long
+        ],
+        ids=["empty", "special_char", "spaces", "injection", "too_long"],
+    )
+    def test_invalid_release_groups_rejected(self, release_group):
+        """Test invalid release group values are rejected."""
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(release_group=release_group)
+        assert "release_group" in str(exc_info.value)
 
 
 # =============================================================================

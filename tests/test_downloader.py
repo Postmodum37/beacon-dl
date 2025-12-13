@@ -83,16 +83,19 @@ class TestFilenameGeneration:
     def test_generate_filename_episodic_c4_format(
         self, downloader, sample_video_content, sample_video_source
     ):
-        """Test filename generation for C4 E006 format."""
+        """Test filename generation for C4 E006 format with scene naming."""
         filename = downloader._generate_filename(
             sample_video_content, sample_video_source
         )
 
-        assert filename.startswith("Campaign.4.S04E06")
+        # Should use display name "Critical.Role" not "Campaign.4"
+        assert filename.startswith("Critical.Role.S04E06")
         assert "Knives.and.Thorns" in filename
         assert "1080p" in filename
+        assert ".BCTV." in filename  # Service tag
         assert "H.264" in filename
         assert "AAC" in filename
+        assert filename.endswith("-Pawsty")  # Release group
 
     def test_generate_filename_episodic_s04e06_format(
         self, downloader, sample_video_source
@@ -130,6 +133,8 @@ class TestFilenameGeneration:
         assert "S04E06" in filename
         assert "Knives.and.Thorns" in filename
         assert "720p" in filename
+        assert ".BCTV." in filename
+        assert filename.endswith("-Pawsty")
 
     def test_generate_filename_non_episodic(self, downloader, sample_video_source):
         """Test filename generation for non-episodic content."""
@@ -155,6 +160,8 @@ class TestFilenameGeneration:
         assert filename.startswith("Critical.Role.Jester")
         assert "Wedding" in filename
         assert "1080p" in filename
+        assert ".BCTV." in filename
+        assert filename.endswith("-Pawsty")
 
     def test_generate_filename_h265_codec(self, downloader, sample_video_content):
         """Test filename generation with H.265 codec detection."""
@@ -359,10 +366,10 @@ class TestDownloadFlow:
         # Change to tmp_path directory
         monkeypatch.chdir(tmp_path)
 
-        # Create a file that matches the expected output pattern
+        # Create a file that matches the expected output pattern (new scene naming)
         expected_file = (
             tmp_path
-            / "Campaign.4.S04E06.Knives.and.Thorns.1080p.WEB-DL.AAC2.0.H.264.mkv"
+            / "Critical.Role.S04E06.Knives.and.Thorns.1080p.BCTV.WEB-DL.AAC2.0.H.264-Pawsty.mkv"
         )
         expected_file.touch()
 

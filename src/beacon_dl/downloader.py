@@ -22,10 +22,11 @@ from rich.progress import (
 )
 
 from .config import settings
+from .constants import SERVICE_TAG
 from .content import VideoContent, VideoSource, get_video_content
 from .exceptions import ContentNotFoundError, DownloadError, MergeError, ValidationError
 from .history import DownloadHistory
-from .utils import sanitize_filename
+from .utils import get_display_name, sanitize_filename
 
 console = Console()
 
@@ -242,12 +243,15 @@ class BeaconDownloader:
         return best or sources[0]
 
     def _generate_filename(self, content: VideoContent, source: VideoSource) -> str:
-        """Generate output filename matching release naming conventions."""
+        """Generate output filename matching scene release naming conventions.
+
+        Format: {Show}.S{season}E{episode}.{Title}.{resolution}.{service}.{source}.{audio}.{video}-{group}
+        Example: Critical.Role.S04E06.Knives.and.Thorns.1080p.BCTV.WEB-DL.AAC2.0.H.264-Pawsty
+        """
         meta = content.metadata
 
-        # Get show name
-        show_name = meta.collection_name or "Critical Role"
-        show_name = sanitize_filename(show_name)
+        # Get display name (converts "Campaign 4" -> "Critical.Role")
+        show_name = get_display_name(meta.collection_name)
 
         # Resolution from actual source
         resolution = f"{source.height}p"
@@ -263,6 +267,9 @@ class BeaconDownloader:
         audio_codec = settings.default_audio_codec
         audio_channels = settings.default_audio_channels
 
+        # Release group from settings
+        release_group = settings.release_group
+
         # Check if episodic
         if meta.season_number is not None and meta.episode_number is not None:
             # Episodic format
@@ -275,25 +282,18 @@ class BeaconDownloader:
 
             return (
                 f"{show_name}.S{season}E{episode}.{episode_title}."
-                f"{resolution}.{settings.source_type}.{audio_codec}{audio_channels}."
-                f"{video_codec}"
+                f"{resolution}.{SERVICE_TAG}.{settings.source_type}.{audio_codec}{audio_channels}."
+                f"{video_codec}-{release_group}"
             )
         else:
             # Non-episodic format
             title = sanitize_filename(meta.title)
 
-            # Check if title already starts with show name
-            escaped_show = re.escape(show_name)
-            if re.match(rf"^{escaped_show}\.", title):
-                return (
-                    f"{title}.{resolution}.{settings.source_type}."
-                    f"{audio_codec}{audio_channels}.{video_codec}"
-                )
-            else:
-                return (
-                    f"{show_name}.{title}.{resolution}.{settings.source_type}."
-                    f"{audio_codec}{audio_channels}.{video_codec}"
-                )
+            return (
+                f"{show_name}.{title}."
+                f"{resolution}.{SERVICE_TAG}.{settings.source_type}."
+                f"{audio_codec}{audio_channels}.{video_codec}-{release_group}"
+            )
 
     def _extract_episode_title(self, full_title: str) -> str:
         """Extract episode title from full title string.
