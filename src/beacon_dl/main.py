@@ -896,7 +896,7 @@ def rename_files(
 
         # Build reverse mapping from dotted names to original names
         dotted_to_original: dict[str, str] = {}
-        for original, display in COLLECTION_DISPLAY_NAMES.items():
+        for original, _display in COLLECTION_DISPLAY_NAMES.items():
             dotted = original.replace(" ", ".")
             dotted_to_original[dotted] = original
 
