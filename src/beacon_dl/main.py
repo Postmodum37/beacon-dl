@@ -49,8 +49,20 @@ app = typer.Typer(
 
 
 @app.callback(invoke_without_command=True)
-def default_callback(ctx: typer.Context) -> None:
+def default_callback(
+    ctx: typer.Context,
+    cookie_path: Path | None = typer.Option(
+        None,
+        "--cookie-path",
+        "-c",
+        help="Path to cookie file (default: from config)",
+    ),
+) -> None:
     """Default to download command when no subcommand is provided."""
+    # Apply global cookie path override if provided
+    if cookie_path is not None:
+        settings.cookie_path = cookie_path
+
     if ctx.invoked_subcommand is None:
         # No subcommand provided - run download with defaults
         download(
@@ -59,6 +71,7 @@ def default_callback(ctx: typer.Context) -> None:
             password=None,
             series=None,
             retry=0,
+            output_dir=None,
             debug=False,
         )
 
@@ -108,6 +121,9 @@ def download(
     retry: int = typer.Option(
         0, "--retry", "-r", help="Number of retry attempts on failure (with exponential backoff)"
     ),
+    output_dir: Path | None = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for downloaded files (default: from config)"
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug mode with verbose output"
     ),
@@ -156,8 +172,11 @@ def download(
 
         console.print(f"URL: {url}")
 
+        # Determine output directory
+        download_path = output_dir if output_dir else settings.download_path
+
         # Download with retry logic
-        downloader = BeaconDownloader(cookie_file)
+        downloader = BeaconDownloader(cookie_file, output_dir=download_path)
 
         def on_retry(attempt: int, error: Exception, wait_time: float) -> None:
             print_warning(f"Attempt {attempt + 1} failed: {error}")
@@ -420,6 +439,9 @@ def batch_download(
     retry: int = typer.Option(
         0, "--retry", "-r", help="Number of retry attempts per episode (with exponential backoff)"
     ),
+    output_dir: Path | None = typer.Option(
+        None, "--output-dir", "-o", help="Output directory for downloaded files (default: from config)"
+    ),
     username: str | None = typer.Option(None, help="Beacon TV Username"),
     password: str | None = typer.Option(None, help="Beacon TV Password"),
     debug: bool = typer.Option(False, "--debug", help="Enable debug mode"),
@@ -469,7 +491,10 @@ def batch_download(
             f"[green]Found {len(filtered_episodes)} episodes to download[/green]\n"
         )
 
-        downloader = BeaconDownloader(cookie_file)
+        # Determine output directory
+        download_path = output_dir if output_dir else settings.download_path
+
+        downloader = BeaconDownloader(cookie_file, output_dir=download_path)
         success_count = 0
         skipped_count = 0
         failed_count = 0

@@ -186,6 +186,7 @@ class TestGetCookieFile:
         with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
+            mock_settings.cookie_path = Path("beacon_cookies.txt")
 
             result = get_cookie_file()
 
@@ -201,6 +202,7 @@ class TestGetCookieFile:
         with patch("src.beacon_dl.auth.settings") as mock_settings:
             mock_settings.beacon_username = None
             mock_settings.beacon_password = None
+            mock_settings.cookie_path = Path("beacon_cookies.txt")
 
             result = get_cookie_file()
 

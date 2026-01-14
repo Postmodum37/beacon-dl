@@ -14,6 +14,8 @@ from pathlib import Path
 
 from rich.console import Console
 
+from .config import settings
+
 console = Console()
 
 
@@ -64,7 +66,7 @@ class DownloadHistory:
     provides file integrity verification through SHA256 checksums.
     """
 
-    DB_FILENAME = ".beacon-dl-history.db"
+    DB_FILENAME = settings.history_db
 
     def __init__(self, db_path: Path | None = None):
         """Initialize download history.

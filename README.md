@@ -110,12 +110,70 @@ beacon-dl
 
 ## Configuration
 
+Settings can be configured via environment variables or a `.env` file in your working directory. Docker secrets are also supported via `/run/secrets/`.
+
+### Authentication
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `BEACON_USERNAME` | - | Account email |
 | `BEACON_PASSWORD` | - | Account password |
-| `PREFERRED_RESOLUTION` | 1080p | Quality (720p, 1080p, 2160p) |
-| `CONTAINER_FORMAT` | mkv | Output format (mkv, mp4) |
+
+### Video Output
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PREFERRED_RESOLUTION` | `1080p` | Video quality (e.g., `720p`, `1080p`, `2160p`) |
+| `CONTAINER_FORMAT` | `mkv` | Output format (`mkv`, `mp4`, `avi`, `mov`, `webm`, `flv`, `m4v`) |
+| `SOURCE_TYPE` | `WEB-DL` | Source tag for scene-style naming |
+| `RELEASE_GROUP` | `Pawsty` | Release group tag for scene-style naming |
+
+### Audio/Video Defaults
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEFAULT_AUDIO_CODEC` | `AAC` | Default audio codec tag |
+| `DEFAULT_AUDIO_CHANNELS` | `2.0` | Default audio channel configuration (e.g., `2.0`, `5.1`) |
+| `DEFAULT_VIDEO_CODEC` | `H.264` | Default video codec tag |
+
+### Paths
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DOWNLOAD_PATH` | `.` | Directory for downloaded files (must exist) |
+| `COOKIE_PATH` | `beacon_cookies.txt` | Path to cookie file (must end in `.txt`) |
+| `HISTORY_DB_PATH` | `.beacon-dl-history.db` | Path to history database (must end in `.db`) |
+
+### Advanced
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `COOKIE_EXPIRY_BUFFER_HOURS` | `6` | Hours before cookie expiration to trigger re-auth (0-24) |
+| `USER_AGENT` | Chrome 120 | Browser user agent string for HTTP requests |
+| `DEBUG` | `false` | Enable verbose debug output |
+
+### Example `.env` File
+
+```env
+BEACON_USERNAME=user@example.com
+BEACON_PASSWORD=yourpassword
+PREFERRED_RESOLUTION=1080p
+CONTAINER_FORMAT=mkv
+DOWNLOAD_PATH=/media/videos
+COOKIE_PATH=/tmp/beacon_cookies.txt
+RELEASE_GROUP=MyGroup
+DEBUG=false
+```
+
+### CLI Overrides
+
+Some settings can be overridden via command-line arguments:
+
+| Option | Overrides | Available On |
+|--------|-----------|--------------|
+| `--cookie-path`, `-c` | `COOKIE_PATH` | All commands (global) |
+| `--output-dir`, `-o` | `DOWNLOAD_PATH` | `download`, `batch-download` |
+| `--debug` | `DEBUG` | `download`, `batch-download` |
 
 ## Output Format
 
@@ -127,7 +185,7 @@ Critical.Role.S04E07.Episode.Title.1080p.WEB-DL.AAC2.0.H.264.mkv
 
 ```bash
 docker build -t beacon-dl .
-docker run --rm -e BEACON_USERNAME=... -e BEACON_PASSWORD=... -v $(pwd):/app beacon-dl
+docker run --rm -e BEACON_USERNAME=... -e BEACON_PASSWORD=... -v ./download:/download -v ./data:/data beacon-dl
 ```
 
 ## Development
