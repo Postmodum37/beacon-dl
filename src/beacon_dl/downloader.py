@@ -45,13 +45,15 @@ class BeaconDownloader:
         ...     downloader.download_slug("c4-e007-on-the-scent")
     """
 
-    def __init__(self, cookie_file: Path):
+    def __init__(self, cookie_file: Path, output_dir: Path | None = None):
         """Initialize downloader.
 
         Args:
             cookie_file: Path to Netscape format cookie file for authentication
+            output_dir: Output directory for downloads (default: uses settings.download_path)
         """
         self.cookie_file = cookie_file
+        self.output_dir = output_dir if output_dir is not None else settings.download_path
         self.client = httpx.Client(
             timeout=DEFAULT_TIMEOUT,
             transport=DEFAULT_TRANSPORT,
@@ -137,7 +139,7 @@ class BeaconDownloader:
 
         # Generate output filename
         output_name = self._generate_filename(content, source)
-        output_file = Path(f"{output_name}.{settings.container_format}")
+        output_file = self.output_dir / f"{output_name}.{settings.container_format}"
 
         console.print(f"[green]Output:[/green] {output_file}")
 

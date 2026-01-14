@@ -203,7 +203,7 @@ def get_cookie_file() -> Path | None:
     3. If no credentials -> return existing cookie file if it exists
 
     The cookie cache is considered valid if:
-    - beacon_cookies.txt exists
+    - Cookie file exists at settings.cookie_path
     - Contains beacon-session cookie
     - Cookie won't expire within cookie_expiry_buffer_hours (default 6h)
 
@@ -215,7 +215,7 @@ def get_cookie_file() -> Path | None:
         >>> if cookie_file and cookie_file.exists():
         ...     print(f"Using cookies from {cookie_file}")
     """
-    cookie_file = Path("beacon_cookies.txt")
+    cookie_file = settings.cookie_path
 
     # If username and password provided, check cache before logging in
     if settings.beacon_username and settings.beacon_password:
@@ -390,7 +390,7 @@ def login_and_get_cookies(
                    If None, only navigates to homepage and /content.
 
     Returns:
-        Path to the Netscape format cookie file (beacon_cookies.txt)
+        Path to the Netscape format cookie file (settings.cookie_path)
 
     Raises:
         Exception: If login fails (invalid credentials, network error, timeout, etc.)
@@ -410,7 +410,7 @@ def login_and_get_cookies(
         - Overwrites existing cookie file on each run to ensure fresh session
         - Uses browser automation detection bypass flags
     """
-    cookie_file = Path("beacon_cookies.txt")
+    cookie_file = settings.cookie_path
 
     # Ensure Chromium is installed before attempting to use Playwright
     ensure_chromium_installed()

@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -15,7 +16,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         populate_by_name=True,  # Allow both field names and aliases
-        secrets_dir="/run/secrets",  # Docker secrets support
+        secrets_dir="/run/secrets" if Path("/run/secrets").exists() else None,  # Docker secrets support, only use if it exists
         extra="ignore",  # Ignore unknown environment variables
     )
 
@@ -135,5 +136,90 @@ class Settings(BaseSettings):
             raise ValueError("cookie_expiry_buffer_hours must be between 0 and 24")
         return v
 
+    # Cookie file path
+    cookie_path: Path = Field(
+        default=Path("beacon_cookies.txt"), validation_alias="COOKIE_PATH"
+    )
+
+    @field_validator("cookie_path", mode="before")
+    @classmethod
+    def validate_cookie_path(cls, v: str | Path) -> Path:
+        """Validate cookie file path.
+
+        Checks that the parent directory path is valid and that the filename
+        ends with '.txt'. Does not require the file to exist.
+        """
+        path = Path(v) if isinstance(v, str) else v
+
+        # Check that parent directory exists (if specified and not current dir)
+        parent = path.parent
+        if parent != Path(".") and not parent.exists():
+            raise ValueError(
+                f'Invalid cookie path: "{v}". '
+                f'Parent directory "{parent}" does not exist.'
+            )
+
+        # Check that the filename ends with .txt
+        if not path.suffix == ".txt":
+            raise ValueError(
+                f'Invalid cookie filename: "{path.name}". '
+                'Filename must end with ".txt" suffix.'
+            )
+
+        return path
+
+    # History DB Path
+    history_db: Path = Field(
+        default=Path(".beacon-dl-history.db"), validation_alias="HISTORY_DB_PATH"
+    )
+
+    @field_validator("history_db", mode="before")
+    @classmethod
+    def validate_history_db(cls, v: str | Path) -> Path:
+        """Validate history database path.
+
+        Checks that the parent directory path is valid and that the filename
+        ends with '.db'. Does not require the file to exist.
+        """
+        path = Path(v) if isinstance(v, str) else v
+
+        # Check that parent directory exists (if specified and not current dir)
+        parent = path.parent
+        if parent != Path(".") and not parent.exists():
+            raise ValueError(
+                f'Invalid history database path: "{v}". '
+                f'Parent directory "{parent}" does not exist.'
+            )
+
+        # Check that the filename ends with .db
+        if not path.suffix == ".db":
+            raise ValueError(
+                f'Invalid history database filename: "{path.name}". '
+                'Filename must end with ".db" suffix.'
+            )
+
+        return path
+
+    download_path: Path = Field(
+        default=Path("."), validation_alias="DOWNLOAD_PATH"
+    )
+
+    @field_validator("download_path", mode="before")
+    @classmethod
+    def validate_download_path(cls, v: str | Path) -> Path:
+        """Validate download path exists and is a directory."""
+        path = Path(v) if isinstance(v, str) else v
+
+        if not path.exists():
+            raise ValueError(
+                f'Invalid download path: "{v}". Directory does not exist.'
+            )
+
+        if not path.is_dir():
+            raise ValueError(
+                f'Invalid download path: "{v}". Path is not a directory.'
+            )
+
+        return path
 
 settings = Settings()
